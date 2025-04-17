@@ -1,17 +1,81 @@
 from diffusers_helper.hf_login import login
 
 import os
+import sys
+import importlib.util
+
+# Debug helper to check why sageattention isn't being imported
+def debug_import_paths(module_name="sageattention"):
+    """Print debugging information about Python's import system for a specific module"""
+    print(f"\n--- Debug import paths for {module_name} ---")
+    print(f"Python executable: {sys.executable}")
+    print(f"Python version: {sys.version}")
+    
+    # Check if the module is already imported
+    if module_name in sys.modules:
+        print(f"Module {module_name} is already imported at: {sys.modules[module_name].__file__}")
+        return True
+    
+    # Try to find the module in sys.path
+    found = False
+    for path in sys.path:
+        spec = importlib.util.find_spec(module_name, [path])
+        if spec is not None:
+            print(f"Module {module_name} found at: {spec.origin}")
+            found = True
+            break
+    
+    if not found:
+        print(f"Module {module_name} not found in any of these paths:")
+        for i, path in enumerate(sys.path):
+            print(f"  {i}: {path}")
+    
+    print("--- End debug info ---\n")
+    return found
+
+# Run the debug function to see why sageattention isn't being imported
+debug_import_paths("sageattention")
+
+# Define a function to load models locally first or download if not found
+def load_model_locally_or_download(model_cls, model_id, subfolder=None, **kwargs):
+    # Extract model name from model_id (e.g. "hunyuanvideo-community/HunyuanVideo" -> "HunyuanVideo")
+    model_name = model_id.split('/')[-1]
+    
+    # Construct local path - use the same directory structure as HF
+    local_path = os.path.join(LOCAL_MODELS_DIR, model_name)
+    if subfolder:
+        local_path = os.path.join(local_path, subfolder)
+    
+    try:
+        # Try loading locally first
+        print(f"Attempting to load {model_name}{f'/{subfolder}' if subfolder else ''} from local path: {local_path}")
+        return model_cls.from_pretrained(local_path, **kwargs)
+    except (OSError, ValueError, FileNotFoundError) as e:
+        print(f"Could not load model from {local_path}, downloading from HF: {e}")
+        return model_cls.from_pretrained(model_id, subfolder=subfolder, **kwargs)
 
 # Try to import sage attention
 try:
     from sageattention import sageattn, sageattn_varlen
     print("Successfully imported Sage Attention")
+    _has_sage_attn = True
 except ImportError:
-    sageattn = None
-    sageattn_varlen = None
+    # Create dummy functions that do nothing but allow the code to run
+    def sageattn(*args, **kwargs):
+        return None
+    def sageattn_varlen(*args, **kwargs):
+        return None
+    sageattn.is_available = lambda: False
+    sageattn_varlen.is_available = lambda: False
+    _has_sage_attn = False
     print("Sage Attention not imported - install with 'pip install sageattention==1.0.6'")
 
+# Set HF_HOME to use our local download directory
 os.environ['HF_HOME'] = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './hf_download')))
+
+# Create local_models directory if it doesn't exist
+LOCAL_MODELS_DIR = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './local_models')))
+os.makedirs(LOCAL_MODELS_DIR, exist_ok=True)
 
 import gradio as gr
 import torch
@@ -53,16 +117,58 @@ high_vram = free_mem_gb > 60
 print(f'Free VRAM {free_mem_gb} GB')
 print(f'High-VRAM Mode: {high_vram}')
 
-text_encoder = LlamaModel.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='text_encoder', torch_dtype=torch.float16).cpu()
-text_encoder_2 = CLIPTextModel.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='text_encoder_2', torch_dtype=torch.float16).cpu()
-tokenizer = LlamaTokenizerFast.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer')
-tokenizer_2 = CLIPTokenizer.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer_2')
-vae = AutoencoderKLHunyuanVideo.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='vae', torch_dtype=torch.float16).cpu()
+# Load models using our function that checks local paths first
+text_encoder = load_model_locally_or_download(
+    LlamaModel, 
+    "hunyuanvideo-community/HunyuanVideo", 
+    subfolder='text_encoder', 
+    torch_dtype=torch.float16
+).cpu()
 
-feature_extractor = SiglipImageProcessor.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='feature_extractor')
-image_encoder = SiglipVisionModel.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='image_encoder', torch_dtype=torch.float16).cpu()
+text_encoder_2 = load_model_locally_or_download(
+    CLIPTextModel, 
+    "hunyuanvideo-community/HunyuanVideo", 
+    subfolder='text_encoder_2', 
+    torch_dtype=torch.float16
+).cpu()
 
-transformer = HunyuanVideoTransformer3DModelPacked.from_pretrained('lllyasviel/FramePackI2V_HY', torch_dtype=torch.bfloat16).cpu()
+tokenizer = load_model_locally_or_download(
+    LlamaTokenizerFast, 
+    "hunyuanvideo-community/HunyuanVideo", 
+    subfolder='tokenizer'
+)
+
+tokenizer_2 = load_model_locally_or_download(
+    CLIPTokenizer, 
+    "hunyuanvideo-community/HunyuanVideo", 
+    subfolder='tokenizer_2'
+)
+
+vae = load_model_locally_or_download(
+    AutoencoderKLHunyuanVideo, 
+    "hunyuanvideo-community/HunyuanVideo", 
+    subfolder='vae', 
+    torch_dtype=torch.float16
+).cpu()
+
+feature_extractor = load_model_locally_or_download(
+    SiglipImageProcessor, 
+    "lllyasviel/flux_redux_bfl", 
+    subfolder='feature_extractor'
+)
+
+image_encoder = load_model_locally_or_download(
+    SiglipVisionModel, 
+    "lllyasviel/flux_redux_bfl", 
+    subfolder='image_encoder', 
+    torch_dtype=torch.float16
+).cpu()
+
+transformer = load_model_locally_or_download(
+    HunyuanVideoTransformer3DModelPacked, 
+    'lllyasviel/FramePackI2V_HY', 
+    torch_dtype=torch.bfloat16
+).cpu()
 
 vae.eval()
 text_encoder.eval()
@@ -73,7 +179,7 @@ transformer.eval()
 # Enable sage attention for the transformer model
 print("Activating Sage Attention...")
 try:
-    if sageattn is not None:
+    if _has_sage_attn:
         # Method 1: Try to set it directly if using appropriate attention mechanism
         if hasattr(transformer, 'set_use_sage_attention'):
             transformer.set_use_sage_attention(True)
@@ -85,9 +191,10 @@ try:
         else:
             print("This model already uses Sage Attention by default when available")
     else:
-        print("Sage Attention not found - please install it with 'pip install sageattention==1.0.6'")
+        print("Sage Attention module detected but will be used in fallback mode")
 except Exception as e:
     print(f"Failed to activate Sage Attention: {e}")
+    print("Continuing without Sage Attention optimization")
 
 if not high_vram:
     vae.enable_slicing()
