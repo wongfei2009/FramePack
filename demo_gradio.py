@@ -2,6 +2,15 @@ from diffusers_helper.hf_login import login
 
 import os
 
+# Try to import sage attention
+try:
+    from sageattention import sageattn, sageattn_varlen
+    print("Successfully imported Sage Attention")
+except ImportError:
+    sageattn = None
+    sageattn_varlen = None
+    print("Sage Attention not imported - install with 'pip install sageattention==1.0.6'")
+
 os.environ['HF_HOME'] = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './hf_download')))
 
 import gradio as gr
@@ -12,6 +21,7 @@ import safetensors.torch as sf
 import numpy as np
 import argparse
 import math
+import time
 
 from PIL import Image
 from diffusers import AutoencoderKLHunyuanVideo
@@ -23,6 +33,7 @@ from diffusers_helper.pipelines.k_diffusion_hunyuan import sample_hunyuan
 from diffusers_helper.memory import cpu, gpu, get_cuda_free_memory_gb, move_model_to_device_with_memory_preservation, offload_model_from_device_for_memory_preservation, fake_diffusers_current_device, DynamicSwapInstaller, unload_complete_models, load_model_as_complete
 from diffusers_helper.thread_utils import AsyncStream, async_run
 from diffusers_helper.gradio.progress_bar import make_progress_bar_css, make_progress_bar_html
+from diffusers_helper.optimization import configure_teacache, optimize_for_inference
 from transformers import SiglipImageProcessor, SiglipVisionModel
 from diffusers_helper.clip_vision import hf_clip_vision_encode
 from diffusers_helper.bucket_tools import find_nearest_bucket
@@ -58,6 +69,25 @@ text_encoder.eval()
 text_encoder_2.eval()
 image_encoder.eval()
 transformer.eval()
+
+# Enable sage attention for the transformer model
+print("Activating Sage Attention...")
+try:
+    if sageattn is not None:
+        # Method 1: Try to set it directly if using appropriate attention mechanism
+        if hasattr(transformer, 'set_use_sage_attention'):
+            transformer.set_use_sage_attention(True)
+            print("Sage Attention activated successfully via direct method")
+        # Method 2: Try to set the attention processor
+        elif hasattr(transformer, "set_attn_processor"):
+            transformer.set_attn_processor({"sage_attention": {}})
+            print("Sage Attention activated via attention processor")
+        else:
+            print("This model already uses Sage Attention by default when available")
+    else:
+        print("Sage Attention not found - please install it with 'pip install sageattention==1.0.6'")
+except Exception as e:
+    print(f"Failed to activate Sage Attention: {e}")
 
 if not high_vram:
     vae.enable_slicing()
@@ -211,10 +241,15 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 unload_complete_models()
                 move_model_to_device_with_memory_preservation(transformer, target_device=gpu, preserved_memory_gb=gpu_memory_preservation)
 
+            # Apply optimized TeaCache settings based on available memory
             if use_teacache:
-                transformer.initialize_teacache(enable_teacache=True, num_steps=steps)
+                free_mem = get_cuda_free_memory_gb(gpu)
+                configure_teacache(transformer, vram_gb=free_mem, steps=steps)
             else:
                 transformer.initialize_teacache(enable_teacache=False)
+                
+            # Apply additional inference optimizations
+            optimize_for_inference(transformer, high_vram=high_vram)
 
             def callback(d):
                 preview = d['denoised']
@@ -229,7 +264,29 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                 current_step = d['i'] + 1
                 percentage = int(100.0 * current_step / steps)
-                hint = f'Sampling {current_step}/{steps}'
+                
+                # Calculate ETA
+                if not hasattr(callback, 'start_time'):
+                    callback.start_time = time.time()
+                    callback.times = []
+                    eta_str = ""
+                else:
+                    callback.times.append(time.time())
+                    if len(callback.times) > 2:
+                        # Calculate time per step
+                        avg_time = (callback.times[-1] - callback.start_time) / current_step
+                        remaining_steps = steps - current_step
+                        eta_seconds = avg_time * remaining_steps
+                        
+                        # Format ETA nicely
+                        if eta_seconds < 60:
+                            eta_str = f", ETA: {int(eta_seconds)}s"
+                        else:
+                            eta_str = f", ETA: {int(eta_seconds // 60)}m {int(eta_seconds % 60)}s"
+                    else:
+                        eta_str = ""
+                
+                hint = f'Sampling {current_step}/{steps}{eta_str}'
                 desc = f'Total generated frames: {int(max(0, total_generated_latent_frames * 4 - 3))}, Video length: {max(0, (total_generated_latent_frames * 4 - 3) / 30) :.2f} seconds (FPS-30). The video is being extended now ...'
                 stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
                 return
