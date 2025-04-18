@@ -3,6 +3,10 @@ from diffusers_helper.hf_login import login
 import os
 import sys
 import importlib.util
+from custom_asyncio_policy import apply_asyncio_fixes
+
+# Apply custom asyncio fixes before any other imports that might use asyncio
+apply_asyncio_fixes()
 
 # Debug helper to check why sageattention isn't being imported
 def debug_import_paths(module_name="sageattention"):
