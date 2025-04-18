@@ -74,12 +74,12 @@ except ImportError:
     _has_sage_attn = False
     print("Sage Attention not imported - install with 'pip install sageattention==1.0.6'")
 
-# Set HF_HOME to use our local download directory
-os.environ['HF_HOME'] = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './hf_download')))
-
 # Create local_models directory if it doesn't exist
 LOCAL_MODELS_DIR = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './local_models')))
 os.makedirs(LOCAL_MODELS_DIR, exist_ok=True)
+
+# Set HF_HOME to use our local_models directory instead of creating a separate hf_download folder
+os.environ['HF_HOME'] = LOCAL_MODELS_DIR
 
 import gradio as gr
 import torch
