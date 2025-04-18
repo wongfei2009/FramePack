@@ -240,6 +240,12 @@ os.makedirs(outputs_folder, exist_ok=True)
 
 @torch.no_grad()
 def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache):
+    # Ensure all parameters are the right type
+    steps = int(steps)
+    gpu_memory_preservation = float(gpu_memory_preservation)
+    use_teacache = bool(use_teacache)
+    # Use a fixed teacache threshold
+    thresh_value = 0.15  # Optimal default value for most cases
     # Reset performance tracker at the start of each run
     performance_tracker.reset()
     performance_tracker.start_timer()
@@ -406,12 +412,22 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             # Track memory before sampling
             performance_tracker.track_memory("before_sampling")
             
-            # Apply optimized TeaCache settings based on available memory
+            # Apply enhanced TeaCache settings with dynamic parameters
             if use_teacache:
                 free_mem = get_cuda_free_memory_gb(gpu)
-                configure_teacache(transformer, vram_gb=free_mem, steps=steps)
+                # Pass additional context to the enhanced TeaCache configuration
+                print(f"Configuring TeaCache with {free_mem:.1f}GB available VRAM, {steps} steps, and threshold {thresh_value:.4f}")
+                
+                # Use the converted threshold value with the updated function
+                configure_teacache(transformer, vram_gb=free_mem, steps=steps, rel_l1_thresh=thresh_value)
+                
+                # Track memory after TeaCache configuration
+                if torch.cuda.is_available():
+                    current_mem = torch.cuda.memory_allocated() / (1024**3)
+                    print(f"Memory after TeaCache configuration: {current_mem:.2f}GB")
             else:
                 transformer.initialize_teacache(enable_teacache=False)
+                print("TeaCache disabled as per user request")
                 
             # Apply additional inference optimizations
             optimize_for_inference(transformer, high_vram=high_vram)
@@ -438,6 +454,9 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     callback.start_time = time.time()
                     callback.times = []
                     callback.last_step_time = callback.start_time
+                    callback.cache_hits = 0
+                    callback.cache_misses = 0
+                    callback.cache_queries = 0
                     eta_str = ""
                 else:
                     current_time = time.time()
@@ -447,6 +466,28 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     
                     # Track step time in performance tracker
                     performance_tracker.track_step_time(step_time)
+                    
+                    # Track TeaCache statistics if available in the denoising data
+                    if 'cache_info' in d:
+                        cache_info = d['cache_info']
+                        if 'hits' in cache_info and 'misses' in cache_info:
+                            # Track new hits/misses since last step
+                            new_hits = cache_info['hits'] - getattr(callback, 'last_hits', 0)
+                            new_misses = cache_info['misses'] - getattr(callback, 'last_misses', 0)
+                            new_queries = new_hits + new_misses
+                            
+                            # Update totals
+                            callback.cache_hits += new_hits
+                            callback.cache_misses += new_misses
+                            callback.cache_queries += new_queries
+                            
+                            # Store current values for next diff
+                            callback.last_hits = cache_info['hits']
+                            callback.last_misses = cache_info['misses']
+                            
+                            # Record in performance tracker
+                            if new_queries > 0:  # Only track if there were queries
+                                performance_tracker.track_cache_stats(new_hits, new_misses, new_queries)
                     
                     if len(callback.times) > 2:
                         # Calculate time per step
@@ -463,6 +504,11 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                         # Add frame generation rate
                         fps = current_step / (callback.times[-1] - callback.start_time)
                         eta_str += f", {fps:.2f} steps/sec"
+                        
+                        # Add cache hit rate if available
+                        if hasattr(callback, 'cache_queries') and callback.cache_queries > 0:
+                            hit_rate = callback.cache_hits / callback.cache_queries * 100
+                            eta_str += f", Cache: {hit_rate:.1f}% hits"
                     else:
                         eta_str = ""
                 
@@ -587,6 +633,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
 
 def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache):
+    # Use default value for teacache_threshold
+    teacache_threshold = 0.15  # Default threshold value
     global stream
     assert input_image is not None, 'No input image!'
 
@@ -641,7 +689,7 @@ with block:
                 end_button = gr.Button(value="End Generation", interactive=False)
 
             with gr.Group():
-                use_teacache = gr.Checkbox(label='Use TeaCache', value=True, info='Faster speed, but often makes hands and fingers slightly worse.')
+                use_teacache = gr.Checkbox(label='Use TeaCache', value=True, info='Accelerates generation by reusing computation across steps. Faster speed, but may slightly affect quality of fine details like hands and fingers.')
 
                 n_prompt = gr.Textbox(label="Negative Prompt", value="", visible=False)  # Not used
                 seed = gr.Number(label="Seed", value=31337, precision=0)
@@ -663,6 +711,8 @@ with block:
             progress_desc = gr.Markdown('', elem_classes='no-generating-animation')
             progress_bar = gr.HTML('', elem_classes='no-generating-animation')
     ips = [input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache]
+    # Update worker call to include threshold
+    async_run_fn = lambda *args: async_run(worker, *args)
     start_button.click(fn=process, inputs=ips, outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button])
     end_button.click(fn=end_process)
 

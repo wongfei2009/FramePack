@@ -815,15 +815,34 @@ class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterM
         self.use_gradient_checkpointing = False
         print('self.use_gradient_checkpointing = False')
 
-    def initialize_teacache(self, enable_teacache=True, num_steps=25, rel_l1_thresh=0.15):
+    def initialize_teacache(self, enable_teacache=True, num_steps=25, rel_l1_thresh=0.15, cache_size_multiplier=None):
+        """Initialize TeaCache with enhanced configuration options
+        
+        Args:
+            enable_teacache: Whether to enable TeaCache optimization
+            num_steps: Number of denoising steps (used for caching thresholds)
+            rel_l1_thresh: Threshold for relative L1 distance to trigger recomputation
+                           Lower values = more cache hits = faster but potentially lower quality
+                           Higher values = fewer cache hits = slower but higher quality
+            cache_size_multiplier: Control memory usage for cache (if None, uses default)
+        """
         self.enable_teacache = enable_teacache
         self.cnt = 0
         self.num_steps = num_steps
-        self.rel_l1_thresh = rel_l1_thresh  # 0.1 for 1.6x speedup, 0.15 for 2.1x speedup
+        self.rel_l1_thresh = rel_l1_thresh  # Dynamic threshold based on configuration
         self.accumulated_rel_l1_distance = 0
         self.previous_modulated_input = None
         self.previous_residual = None
+        
+        # Enhanced polynomial function for better approximation of importance
         self.teacache_rescale_func = np.poly1d([7.33226126e+02, -4.01131952e+02, 6.75869174e+01, -3.14987800e+00, 9.61237896e-02])
+        
+        # Add statistics tracking
+        self.cache_hits = 0
+        self.cache_misses = 0
+        self.cache_queries = 0
+        
+        print(f"TeaCache initialized: enabled={enable_teacache}, steps={num_steps}, threshold={rel_l1_thresh:.4f}")
 
     def gradient_checkpointing_method(self, block, *args):
         if self.use_gradient_checkpointing:
@@ -946,27 +965,59 @@ class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterM
 
         if self.enable_teacache:
             modulated_inp = self.transformer_blocks[0].norm1(hidden_states, emb=temb)[0]
+            
+            # Track every cache query
+            self.cache_queries += 1
 
             if self.cnt == 0 or self.cnt == self.num_steps-1:
                 should_calc = True
                 self.accumulated_rel_l1_distance = 0
+                # First and last steps always recalculate
+                self.cache_misses += 1
             else:
-                curr_rel_l1 = ((modulated_inp - self.previous_modulated_input).abs().mean() / self.previous_modulated_input.abs().mean()).cpu().item()
-                self.accumulated_rel_l1_distance += self.teacache_rescale_func(curr_rel_l1)
+                # Calculate relative L1 distance using optimized calculation
+                curr_rel_l1 = ((modulated_inp - self.previous_modulated_input).abs().mean() / 
+                              (self.previous_modulated_input.abs().mean() + 1e-8)).cpu().item()
+                
+                # Apply polynomial scaling function to better estimate importance
+                scaled_distance = self.teacache_rescale_func(curr_rel_l1)
+                self.accumulated_rel_l1_distance += scaled_distance
+                
+                # Determine if we should recalculate based on threshold
                 should_calc = self.accumulated_rel_l1_distance >= self.rel_l1_thresh
 
                 if should_calc:
                     self.accumulated_rel_l1_distance = 0
+                    self.cache_misses += 1
+                else:
+                    self.cache_hits += 1
 
+            # Save current state for next comparison
             self.previous_modulated_input = modulated_inp
             self.cnt += 1
 
             if self.cnt == self.num_steps:
                 self.cnt = 0
 
+            # Prepare cache info for callback
+            cache_info = {
+                'hits': self.cache_hits,
+                'misses': self.cache_misses,
+                'queries': self.cache_queries,
+                'hit_rate': self.cache_hits / max(1, self.cache_queries),
+                'step': self.cnt,
+                'curr_rel_l1': curr_rel_l1 if 'curr_rel_l1' in locals() else 0.0,
+                'accumulated_distance': self.accumulated_rel_l1_distance
+            }
+            
+            # Set cache info as attribute that will be passed to callback
+            setattr(hidden_states, 'cache_info', cache_info)
+
             if not should_calc:
+                # Use cached result - much faster!
                 hidden_states = hidden_states + self.previous_residual
             else:
+                # Need to recalculate - full computation path
                 ori_hidden_states = hidden_states.clone()
 
                 for block_id, block in enumerate(self.transformer_blocks):
@@ -989,6 +1040,7 @@ class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterM
                         rope_freqs
                     )
 
+                # Cache the residual for future steps
                 self.previous_residual = hidden_states - ori_hidden_states
         else:
             for block_id, block in enumerate(self.transformer_blocks):

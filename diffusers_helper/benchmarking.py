@@ -16,6 +16,7 @@ class PerformanceTracker:
         self.step_times = []
         self.total_time = 0
         self.start_time = None
+        self.cache_stats = []
         
     def start_timer(self, name=None):
         """Start a named timer"""
@@ -56,6 +57,15 @@ class PerformanceTracker:
         """Record time for a single generation step"""
         self.step_times.append(step_time)
         
+    def track_cache_stats(self, hits, misses, total_queries):
+        """Track TeaCache performance statistics"""
+        self.cache_stats.append({
+            'hits': hits,
+            'misses': misses,
+            'total': total_queries,
+            'hit_rate': hits / total_queries if total_queries > 0 else 0
+        })
+        
     def get_summary(self):
         """Generate a performance summary"""
         if self.start_time is not None:
@@ -86,6 +96,19 @@ class PerformanceTracker:
                 "total": np.sum(self.step_times),
                 "count": len(self.step_times),
                 "steps_per_sec": 1.0 / np.mean(self.step_times) if np.mean(self.step_times) > 0 else 0
+            }
+            
+        # Process cache statistics
+        if self.cache_stats:
+            total_hits = sum(stat['hits'] for stat in self.cache_stats)
+            total_queries = sum(stat['total'] for stat in self.cache_stats)
+            avg_hit_rate = total_hits / total_queries if total_queries > 0 else 0
+            
+            summary["cache"] = {
+                "hits": total_hits,
+                "total": total_queries,
+                "hit_rate": avg_hit_rate,
+                "estimated_time_saved": total_hits * 0.005  # Rough estimate of time saved per cache hit
             }
             
         # Process memory statistics
@@ -123,6 +146,14 @@ class PerformanceTracker:
         print("\nComponent Timings:")
         for name, timer in summary["timers"].items():
             print(f"  {name}: {timer['mean']:.4f} sec avg, {timer['total']:.2f} sec total ({timer['count']} calls)")
+            
+        # Print TeaCache statistics if available
+        if "cache" in summary:
+            cache = summary["cache"]
+            print(f"\nTeaCache Performance:")
+            print(f"  Cache Hits: {cache['hits']} / {cache['total']} queries")
+            print(f"  Hit Rate: {cache['hit_rate']:.2%}")
+            print(f"  Estimated Time Saved: {cache['estimated_time_saved']:.2f} seconds")
             
         if "memory" in summary:
             mem = summary["memory"]

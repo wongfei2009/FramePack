@@ -131,7 +131,13 @@ class FlowMatchUniPC:
             t_prev_list = t_prev_list[-order:]
 
             if callback is not None:
-                callback({'x': x, 'i': i, 'denoised': model_prev_list[-1]})
+                callback_data = {'x': x, 'i': i, 'denoised': model_prev_list[-1]}
+                
+                # Check if cache info is available and pass it to the callback
+                if hasattr(model_prev_list[-1], 'cache_info'):
+                    callback_data['cache_info'] = getattr(model_prev_list[-1], 'cache_info')
+                
+                callback(callback_data)
 
         return model_prev_list[-1]
 

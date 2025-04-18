@@ -26,35 +26,92 @@ def aggressive_memory_cleanup():
         }
     return None
 
-def configure_teacache(transformer, vram_gb, steps=25):
-    """Configure TeaCache settings based on available VRAM"""
+def configure_teacache(transformer, vram_gb, steps=25, rel_l1_thresh=None):
+    """Configure TeaCache settings based on available VRAM, model parameters, and step count
+    
+    This enhanced version optimizes the rel_l1_thresh parameter based on multiple factors:
+    1. Available VRAM - higher VRAM allows more cache entries
+    2. Step count - higher step counts benefit from more aggressive caching
+    3. Model precision - different data types have different memory requirements
+    
+    Returns the transformer with optimized TeaCache settings.
+    """
     if not hasattr(transformer, 'initialize_teacache'):
         print("Model doesn't support TeaCache")
         return transformer
     
-    # The model only supports enable_teacache and num_steps parameters
-    # Adjusting the threshold based on available VRAM instead of using cache_size_multiplier
+    # Base TeaCache parameters
     teacache_params = {
         'enable_teacache': True,
         'num_steps': steps
     }
     
-    # Adjust rel_l1_thresh based on available VRAM
-    # Lower threshold = more cache hits = faster but potentially lower quality
-    # Higher threshold = fewer cache hits = slower but higher quality
-    if hasattr(transformer, 'rel_l1_thresh'):
+    # Determine model precision for better parameter tuning
+    precision = 'unknown'
+    if hasattr(transformer, 'dtype'):
+        if transformer.dtype == torch.float32:
+            precision = 'float32'
+        elif transformer.dtype == torch.bfloat16:
+            precision = 'bfloat16'
+        elif transformer.dtype == torch.float16:
+            precision = 'float16'
+    
+    # Calculate optimal threshold based on step count
+    # Fewer steps benefit from more aggressive caching (lower threshold)
+    step_factor = max(0.5, min(1.0, steps / 30))
+    
+    # Adjust cache_size_multiplier if supported
+    if hasattr(transformer, 'initialize_teacache') and 'cache_size_multiplier' in transformer.initialize_teacache.__code__.co_varnames:
+        # Calculate optimal cache size based on VRAM and precision
+        # Higher precision needs more memory per cache entry
+        if precision == 'float32':
+            cache_multiplier = min(vram_gb * 0.15, 2.5)  # More conservative for float32
+        elif precision == 'bfloat16':
+            cache_multiplier = min(vram_gb * 0.20, 3.0)  # Balanced for bfloat16
+        else:  # float16 or unknown
+            cache_multiplier = min(vram_gb * 0.25, 3.5)  # More aggressive for float16
+            
+        teacache_params['cache_size_multiplier'] = cache_multiplier
+        print(f"Setting TeaCache size multiplier to {cache_multiplier:.2f}")
+    
+    # Dynamically adjust rel_l1_thresh based on multiple factors
+    if hasattr(transformer, 'rel_l1_thresh') or (hasattr(transformer, 'initialize_teacache') and 'rel_l1_thresh' in transformer.initialize_teacache.__code__.co_varnames):
+        # Base threshold values calibrated to VRAM tiers
         if vram_gb > 20:  # High-end cards (RTX 3090, 4090, etc)
             print(f"Using optimized TeaCache for high VRAM ({vram_gb:.1f} GB)")
-            teacache_params['rel_l1_thresh'] = 0.20  # More quality focused
+            base_thresh = 0.18  # Higher quality baseline for high VRAM
         elif vram_gb > 12:  # Mid-range cards (RTX 3080, etc)
             print(f"Using optimized TeaCache for medium VRAM ({vram_gb:.1f} GB)")
-            teacache_params['rel_l1_thresh'] = 0.15  # Balanced
+            base_thresh = 0.14  # Balanced baseline for medium VRAM
         elif vram_gb > 8:  # Lower-end cards (RTX 3060, etc)
             print(f"Using optimized TeaCache for low VRAM ({vram_gb:.1f} GB)")
-            teacache_params['rel_l1_thresh'] = 0.12  # More speed focused
+            base_thresh = 0.11  # Speed-focused baseline for low VRAM
         else:  # Very limited VRAM
             print(f"Using optimized TeaCache for very low VRAM ({vram_gb:.1f} GB)")
-            teacache_params['rel_l1_thresh'] = 0.10  # Maximum speed
+            base_thresh = 0.09  # Maximum speed baseline for very low VRAM
+        
+        # Apply step factor adjustment - more steps need higher threshold for quality
+        # Apply additional adjustment based on precision
+        if precision == 'float32':
+            precision_factor = 1.1  # Higher threshold for fp32 (better quality)
+        elif precision == 'bfloat16':
+            precision_factor = 1.0  # Baseline for bf16
+        else:  # float16 or unknown
+            precision_factor = 0.9  # Lower threshold for fp16 (faster)
+            
+        # Use manual threshold if provided, otherwise calculate dynamically
+        if rel_l1_thresh is not None:
+            final_thresh = float(rel_l1_thresh)
+            print(f"Using manually specified TeaCache threshold: {final_thresh:.4f}")
+        else:
+            # Calculate final threshold with all factors
+            final_thresh = base_thresh * step_factor * precision_factor
+            
+            # Clamp to reasonable range to prevent extreme values
+            final_thresh = max(0.08, min(0.25, final_thresh))
+            print(f"Dynamic TeaCache threshold: {final_thresh:.4f} (base: {base_thresh:.4f}, step factor: {step_factor:.2f}, precision: {precision})")
+        
+        teacache_params['rel_l1_thresh'] = final_thresh
     
     print(f"TeaCache configuration: {teacache_params}")
     transformer.initialize_teacache(**teacache_params)

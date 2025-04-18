@@ -34,8 +34,14 @@ def fm_wrapper(transformer, t_scale=1000.0):
         else:
             hidden_states = torch.cat([x, concat_latent.to(x)], dim=1)
 
+        # Run the positive prediction
         pred_positive = transformer(hidden_states=hidden_states, timestep=timestep, return_dict=False, **extra_args['positive'])[0].float()
-
+        
+        # Extract cache info from transformer if available
+        cache_info = None
+        if hasattr(pred_positive, 'cache_info'):
+            cache_info = getattr(pred_positive, 'cache_info')
+        
         if cfg_scale == 1.0:
             pred_negative = torch.zeros_like(pred_positive)
         else:
@@ -45,7 +51,11 @@ def fm_wrapper(transformer, t_scale=1000.0):
         pred = rescale_noise_cfg(pred_cfg, pred_positive, guidance_rescale=cfg_rescale)
 
         x0 = x.float() - pred.float() * append_dims(sigma, x.ndim)
-
+        
+        # Attach cache info to the result
+        if cache_info is not None:
+            setattr(x0, 'cache_info', cache_info)
+            
         return x0.to(dtype=original_dtype)
 
     return k_model
