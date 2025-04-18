@@ -66,6 +66,9 @@ class PerformanceTracker:
             'hit_rate': hits / total_queries if total_queries > 0 else 0
         })
         
+        # Print a debug message to confirm we're tracking stats
+        print(f"TeaCache stats tracked: +{hits} hits, +{misses} misses, {hits}/{total_queries} ({hits/total_queries*100:.1f}% hit rate)")
+        
     def get_summary(self):
         """Generate a performance summary"""
         if self.start_time is not None:
@@ -147,13 +150,16 @@ class PerformanceTracker:
         for name, timer in summary["timers"].items():
             print(f"  {name}: {timer['mean']:.4f} sec avg, {timer['total']:.2f} sec total ({timer['count']} calls)")
             
-        # Print TeaCache statistics if available
+        # Always print TeaCache statistics
         if "cache" in summary:
             cache = summary["cache"]
             print(f"\nTeaCache Performance:")
             print(f"  Cache Hits: {cache['hits']} / {cache['total']} queries")
             print(f"  Hit Rate: {cache['hit_rate']:.2%}")
             print(f"  Estimated Time Saved: {cache['estimated_time_saved']:.2f} seconds")
+        else:
+            # Even if we don't have cache stats, report that
+            print(f"\nTeaCache Performance: No statistics collected")
             
         if "memory" in summary:
             mem = summary["memory"]

@@ -485,9 +485,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                             callback.last_hits = cache_info['hits']
                             callback.last_misses = cache_info['misses']
                             
-                            # Record in performance tracker
-                            if new_queries > 0:  # Only track if there were queries
-                                performance_tracker.track_cache_stats(new_hits, new_misses, new_queries)
+                            # Always record in performance tracker even if no new queries
+                            # This ensures statistics are tracked for every step
+                            performance_tracker.track_cache_stats(new_hits, new_misses, max(1, new_queries))
+                            
+                            # Print additional debug info about cache state
+                            print(f"Step {current_step}/{steps} TeaCache: +{new_hits}/{new_queries} hits, total {callback.cache_hits}/{callback.cache_queries} ({callback.cache_hits/max(1,callback.cache_queries)*100:.1f}%)")
                     
                     if len(callback.times) > 2:
                         # Calculate time per step
@@ -570,6 +573,33 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             sampling_time = performance_tracker.end_timer("sampling")
             print(f"Sampling completed in {sampling_time:.2f} seconds")
             
+            # Capture final TeaCache stats directly from the model for accurate reporting
+            if use_teacache and hasattr(transformer, 'cache_hits'):
+                # Get the current cache stats from the model
+                total_hits = transformer.cache_hits
+                total_misses = transformer.cache_misses
+                total_queries = transformer.cache_queries
+                
+                # Only track if there are new queries since last check
+                if hasattr(callback, 'last_model_queries'):
+                    new_queries = total_queries - callback.last_model_queries
+                    new_hits = total_hits - callback.last_model_hits
+                    new_misses = total_misses - callback.last_model_misses
+                else:
+                    new_queries = total_queries
+                    new_hits = total_hits
+                    new_misses = total_misses
+                
+                # Store the values for next check
+                callback.last_model_queries = total_queries
+                callback.last_model_hits = total_hits
+                callback.last_model_misses = total_misses
+                
+                # Only record if we have new queries
+                if new_queries > 0:
+                    performance_tracker.track_cache_stats(new_hits, new_misses, new_queries)
+                    print(f"Final sampling TeaCache stats: +{new_hits}/{new_queries} hits")
+            
             real_history_latents = history_latents[:, :, :total_generated_latent_frames, :, :]
 
             # Track VAE decoding time
@@ -628,6 +658,19 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
     # Print performance summary at the end
     performance_tracker.print_summary()
+    
+    # Manually check TeaCache stats on the transformer to ensure they were captured
+    if use_teacache and hasattr(transformer, 'cache_hits'):
+        print("\n----- TeaCache Model Statistics -----")
+        print(f"Direct from model: hits={transformer.cache_hits}, misses={transformer.cache_misses}, queries={transformer.cache_queries}")
+        if transformer.cache_queries > 0:
+            hit_rate = transformer.cache_hits / transformer.cache_queries * 100
+            print(f"Hit rate: {hit_rate:.2f}%")
+            # Estimate time saved (about 4-5ms per cache hit on average)
+            time_saved = transformer.cache_hits * 0.005
+            print(f"Estimated time saved: {time_saved:.2f} seconds")
+        print("-------------------------------------\n")
+    
     stream.output_queue.push(('end', None))
     return
 

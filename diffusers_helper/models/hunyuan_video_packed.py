@@ -837,12 +837,13 @@ class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterM
         # Enhanced polynomial function for better approximation of importance
         self.teacache_rescale_func = np.poly1d([7.33226126e+02, -4.01131952e+02, 6.75869174e+01, -3.14987800e+00, 9.61237896e-02])
         
-        # Add statistics tracking
+        # Add statistics tracking - always reset these when initializing
         self.cache_hits = 0
         self.cache_misses = 0
         self.cache_queries = 0
         
         print(f"TeaCache initialized: enabled={enable_teacache}, steps={num_steps}, threshold={rel_l1_thresh:.4f}")
+        print(f"Cache stats reset: hits={self.cache_hits}, misses={self.cache_misses}, queries={self.cache_queries}")
 
     def gradient_checkpointing_method(self, block, *args):
         if self.use_gradient_checkpointing:
