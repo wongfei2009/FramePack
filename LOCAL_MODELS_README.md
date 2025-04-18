@@ -8,44 +8,56 @@ The project will look for models in the `local_models` directory with the follow
 
 ```
 local_models/
-├── HunyuanVideo/
-│   ├── text_encoder/
-│   ├── text_encoder_2/
-│   ├── tokenizer/
-│   ├── tokenizer_2/
-│   └── vae/
-├── flux_redux_bfl/
-│   ├── feature_extractor/
-│   └── image_encoder/
-└── FramePackI2V_HY/
+├── text_encoders/
+│   ├── clip_l.safetensors
+│   └── llava_llama3_fp8_scaled.safetensors
+├── vae/
+│   └── hunyuan_video_vae_bf16.safetensors
+├── clip_vision/
+│   └── sigclip_vision_patch14_384.safetensors
+└── diffusion_models/
+    └── FramePackI2V_HY_bf16.safetensors
 ```
 
 ## How to Set Up Local Models
 
-1. First, download the models from Hugging Face or obtain them locally.
+### Using single file safetensors
 
-2. Place the models in the appropriate directories shown above.
+Download one of the following files for the main transformer model:
+```
+https://huggingface.co/Kijai/HunyuanVideo_comfy/resolve/main/FramePackI2V_HY_bf16.safetensors
+```
 
-3. Make sure each model directory contains all necessary files (config.json, model weights, etc.)
+Place it in:
+```
+local_models/diffusion_models/
+```
 
-4. Run the application as usual with `python demo_gradio.py`
+### For required text encoders, VAE and sigclip vision models:
 
-The application will now:
-- First attempt to load models from the local directory
-- Fall back to downloading from Hugging Face if the local models don't exist or are invalid
+Download these required support models:
+```
+https://huggingface.co/Comfy-Org/HunyuanVideo_repackaged/resolve/main/split_files/text_encoders/clip_l.safetensors
+https://huggingface.co/Comfy-Org/HunyuanVideo_repackaged/resolve/main/split_files/text_encoders/llava_llama3_fp16.safetensors
+https://huggingface.co/Comfy-Org/HunyuanVideo_repackaged/resolve/main/split_files/vae/hunyuan_video_vae_bf16.safetensors
+https://huggingface.co/Comfy-Org/sigclip_vision_384/resolve/main/sigclip_vision_patch14_384.safetensors
+```
 
-## Manually Preparing Models
+Place them in the appropriate directories as shown in the directory structure above.
 
-If you want to download the models manually, you can use the Hugging Face CLI:
+## Automatic Download Script
+
+For convenience, this project includes a Python script to automatically download all required models:
 
 ```bash
-# Install the Hugging Face Hub CLI if you haven't already
-pip install huggingface_hub
+# Install dependencies if you haven't already
+pip install requests tqdm huggingface_hub
 
-# Download the models with their subdirectories
-huggingface-cli download hunyuanvideo-community/HunyuanVideo --local-dir ./local_models/HunyuanVideo --local-dir-use-symlinks False
-huggingface-cli download lllyasviel/flux_redux_bfl --local-dir ./local_models/flux_redux_bfl --local-dir-use-symlinks False
-huggingface-cli download lllyasviel/FramePackI2V_HY --local-dir ./local_models/FramePackI2V_HY --local-dir-use-symlinks False
+# Download all models with default settings (bf16 transformer model)
+python download_hunyuan_models.py
+
+# Specify a different download directory
+python download_hunyuan_models.py --base-dir /path/to/models
 ```
 
 ## Troubleshooting
