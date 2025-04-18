@@ -97,6 +97,8 @@ from diffusers_helper.pipelines.k_diffusion_hunyuan import sample_hunyuan
 from diffusers_helper.memory import cpu, gpu, get_cuda_free_memory_gb, move_model_to_device_with_memory_preservation, offload_model_from_device_for_memory_preservation, fake_diffusers_current_device, DynamicSwapInstaller, unload_complete_models, load_model_as_complete
 from diffusers_helper.thread_utils import AsyncStream, async_run
 from diffusers_helper.gradio.progress_bar import make_progress_bar_css, make_progress_bar_html
+from diffusers_helper.optimization import configure_teacache, optimize_for_inference, aggressive_memory_cleanup, warmup_model
+from diffusers_helper.benchmarking import performance_tracker
 from diffusers_helper.optimization import configure_teacache, optimize_for_inference
 from transformers import SiglipImageProcessor, SiglipVisionModel
 from diffusers_helper.clip_vision import hf_clip_vision_encode
@@ -234,12 +236,32 @@ os.makedirs(outputs_folder, exist_ok=True)
 
 @torch.no_grad()
 def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, steps, cfg, gs, rs, gpu_memory_preservation, use_teacache):
+    # Reset performance tracker at the start of each run
+    performance_tracker.reset()
+    performance_tracker.start_timer()
+    
     total_latent_sections = (total_second_length * 30) / (latent_window_size * 4)
     total_latent_sections = int(max(round(total_latent_sections), 1))
 
     job_id = generate_timestamp()
 
     stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Starting ...'))))
+    
+    # Track initial memory usage
+    mem_stats = performance_tracker.track_memory("initial")
+    print(f"Initial memory: {mem_stats['current_gb']:.2f}GB used, {mem_stats['free_gb']:.2f}GB free")
+    
+    # Perform model warmup to optimize GPU performance
+    if high_vram:
+        stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Warming up model...'))))
+        performance_tracker.start_timer("warmup")
+        transformer.to(gpu)
+        warmup_model(transformer, device=gpu, dtype=torch.bfloat16)
+        if not high_vram:
+            transformer.to(cpu)
+        aggressive_memory_cleanup()
+        warmup_time = performance_tracker.end_timer("warmup")
+        print(f"Model warmup completed in {warmup_time:.2f} seconds")
 
     try:
         # Clean GPU
@@ -249,14 +271,20 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             )
 
         # Text encoding
-
         stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Text encoding ...'))))
+        
+        performance_tracker.start_timer("text_encoding")
+        performance_tracker.track_memory("before_text_encoding")
 
         if not high_vram:
             fake_diffusers_current_device(text_encoder, gpu)  # since we only encode one text - that is one model move and one encode, offload is same time consumption since it is also one load and one encode.
             load_model_as_complete(text_encoder_2, target_device=gpu)
 
         llama_vec, clip_l_pooler = encode_prompt_conds(prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2)
+        
+        text_encoding_time = performance_tracker.end_timer("text_encoding")
+        performance_tracker.track_memory("after_text_encoding")
+        print(f"Text encoding completed in {text_encoding_time:.2f} seconds")
 
         if cfg == 1:
             llama_vec_n, clip_l_pooler_n = torch.zeros_like(llama_vec), torch.zeros_like(clip_l_pooler)
@@ -286,7 +314,16 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         if not high_vram:
             load_model_as_complete(vae, target_device=gpu)
 
+        # Time the VAE encoding to identify performance bottlenecks
+        vae_start_time = time.time()
         start_latent = vae_encode(input_image_pt, vae)
+        vae_time = time.time() - vae_start_time
+        print(f"VAE encoding completed in {vae_time:.2f} seconds")
+        
+        # Aggressive memory cleanup after VAE encoding
+        if not high_vram:
+            vae.to(cpu)
+            aggressive_memory_cleanup()
 
         # CLIP Vision
 
@@ -295,8 +332,17 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         if not high_vram:
             load_model_as_complete(image_encoder, target_device=gpu)
 
+        # Time the CLIP Vision encoding
+        clip_start_time = time.time()
         image_encoder_output = hf_clip_vision_encode(input_image_np, feature_extractor, image_encoder)
         image_encoder_last_hidden_state = image_encoder_output.last_hidden_state
+        clip_time = time.time() - clip_start_time
+        print(f"CLIP Vision encoding completed in {clip_time:.2f} seconds")
+        
+        # Aggressive memory cleanup after CLIP encoding
+        if not high_vram:
+            image_encoder.to(cpu)
+            aggressive_memory_cleanup()
 
         # Dtype
 
@@ -345,9 +391,17 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
 
             if not high_vram:
+                # Clean up memory before loading transformer
                 unload_complete_models()
+                aggressive_memory_cleanup()
+                
+                # Load transformer with optimized memory settings
+                print(f"Loading transformer with {gpu_memory_preservation}GB memory preservation")
                 move_model_to_device_with_memory_preservation(transformer, target_device=gpu, preserved_memory_gb=gpu_memory_preservation)
 
+            # Track memory before sampling
+            performance_tracker.track_memory("before_sampling")
+            
             # Apply optimized TeaCache settings based on available memory
             if use_teacache:
                 free_mem = get_cuda_free_memory_gb(gpu)
@@ -357,6 +411,9 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 
             # Apply additional inference optimizations
             optimize_for_inference(transformer, high_vram=high_vram)
+            
+            # Start sampling timer
+            performance_tracker.start_timer("sampling")
 
             def callback(d):
                 preview = d['denoised']
@@ -372,13 +429,21 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 current_step = d['i'] + 1
                 percentage = int(100.0 * current_step / steps)
                 
-                # Calculate ETA
+                # Calculate ETA and track performance
                 if not hasattr(callback, 'start_time'):
                     callback.start_time = time.time()
                     callback.times = []
+                    callback.last_step_time = callback.start_time
                     eta_str = ""
                 else:
-                    callback.times.append(time.time())
+                    current_time = time.time()
+                    step_time = current_time - callback.last_step_time
+                    callback.last_step_time = current_time
+                    callback.times.append(current_time)
+                    
+                    # Track step time in performance tracker
+                    performance_tracker.track_step_time(step_time)
+                    
                     if len(callback.times) > 2:
                         # Calculate time per step
                         avg_time = (callback.times[-1] - callback.start_time) / current_step
@@ -390,10 +455,22 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                             eta_str = f", ETA: {int(eta_seconds)}s"
                         else:
                             eta_str = f", ETA: {int(eta_seconds // 60)}m {int(eta_seconds % 60)}s"
+                            
+                        # Add frame generation rate
+                        fps = current_step / (callback.times[-1] - callback.start_time)
+                        eta_str += f", {fps:.2f} steps/sec"
                     else:
                         eta_str = ""
                 
-                hint = f'Sampling {current_step}/{steps}{eta_str}'
+                # Show memory usage in the progress
+                if torch.cuda.is_available():
+                    current_mem = torch.cuda.memory_allocated() / (1024**3)
+                    max_mem = torch.cuda.max_memory_allocated() / (1024**3)
+                    mem_str = f" (VRAM: {current_mem:.1f}GB, peak: {max_mem:.1f}GB)"
+                else:
+                    mem_str = ""
+                    
+                hint = f'Sampling {current_step}/{steps}{eta_str}{mem_str}'
                 desc = f'Total generated frames: {int(max(0, total_generated_latent_frames * 4 - 3))}, Video length: {max(0, (total_generated_latent_frames * 4 - 3) / 30) :.2f} seconds (FPS-30). The video is being extended now ...'
                 stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
                 return
@@ -439,8 +516,16 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 offload_model_from_device_for_memory_preservation(transformer, target_device=gpu, preserved_memory_gb=8)
                 load_model_as_complete(vae, target_device=gpu)
 
+            # End sampling timer when reaching decoding stage
+            sampling_time = performance_tracker.end_timer("sampling")
+            print(f"Sampling completed in {sampling_time:.2f} seconds")
+            
             real_history_latents = history_latents[:, :, :total_generated_latent_frames, :, :]
 
+            # Track VAE decoding time
+            performance_tracker.start_timer("vae_decode")
+            performance_tracker.track_memory("before_vae_decode")
+            
             if history_pixels is None:
                 history_pixels = vae_decode(real_history_latents, vae).cpu()
             else:
@@ -449,20 +534,40 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
                 current_pixels = vae_decode(real_history_latents[:, :, :section_latent_frames], vae).cpu()
                 history_pixels = soft_append_bcthw(current_pixels, history_pixels, overlapped_frames)
+                
+            vae_decode_time = performance_tracker.end_timer("vae_decode")
+            performance_tracker.track_memory("after_vae_decode")
+            print(f"VAE decoding completed in {vae_decode_time:.2f} seconds")
 
             if not high_vram:
+                # More aggressive memory cleanup after section processing
                 unload_complete_models()
+                aggressive_memory_cleanup()
+                
+                # Report memory usage
+                if torch.cuda.is_available():
+                    current_mem = torch.cuda.memory_allocated() / (1024**3)
+                    max_mem = torch.cuda.max_memory_allocated() / (1024**3)
+                    print(f"Memory after section: current={current_mem:.2f}GB, peak={max_mem:.2f}GB")
 
             output_filename = os.path.join(outputs_folder, f'{job_id}_{total_generated_latent_frames}.mp4')
 
+            # Track video saving time
+            performance_tracker.start_timer("video_save")
             save_bcthw_as_mp4(history_pixels, output_filename, fps=30)
-
+            video_save_time = performance_tracker.end_timer("video_save")
+            
             print(f'Decoded. Current latent shape {real_history_latents.shape}; pixel shape {history_pixels.shape}')
+            print(f'Video saved in {video_save_time:.2f} seconds')
 
             stream.output_queue.push(('file', output_filename))
 
             if is_last_section:
+                # Finish the sampling timer if still running
+                if hasattr(performance_tracker, "sampling_start"):
+                    performance_tracker.end_timer("sampling")
                 break
+                
     except:
         traceback.print_exc()
 
@@ -471,6 +576,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 text_encoder, text_encoder_2, image_encoder, vae, transformer
             )
 
+    # Print performance summary at the end
+    performance_tracker.print_summary()
     stream.output_queue.push(('end', None))
     return
 
