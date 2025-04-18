@@ -63,24 +63,6 @@ For example, to install sage-attention (linux):
 
 However, you are highly recommended to first try without sage-attention since it will influence results, though the influence is minimal.
 
-# Download Models for Local Use
-
-FramePack supports using local models instead of downloading them automatically from Hugging Face. To download all required models, run:
-
-    pip install requests tqdm
-    python download_hunyuan_models.py
-
-This will download all required models to the `local_models` directory. For more options:
-
-    python download_hunyuan_models.py --help
-
-Available options:
-- `--base-dir PATH`: Specify a custom base directory for the models
-- `--retry N`: Number of retry attempts for failed downloads (default: 3)
-- `--retry-delay S`: Delay in seconds between retry attempts (default: 5)
-
-For more details about local model usage, see [LOCAL_MODELS_README.md](LOCAL_MODELS_README.md).
-
 # GUI
 
 ![ui](https://github.com/user-attachments/assets/8c5cdbb1-b80c-4b7e-ac27-83834ac24cc4)
