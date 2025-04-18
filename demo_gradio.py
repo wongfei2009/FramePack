@@ -666,9 +666,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         if transformer.cache_queries > 0:
             hit_rate = transformer.cache_hits / transformer.cache_queries * 100
             print(f"Hit rate: {hit_rate:.2f}%")
-            # Estimate time saved (about 4-5ms per cache hit on average)
-            time_saved = transformer.cache_hits * 0.005
-            print(f"Estimated time saved: {time_saved:.2f} seconds")
+            # No longer calculating estimated time saved as it's inaccurate
         print("-------------------------------------\n")
     
     stream.output_queue.push(('end', None))

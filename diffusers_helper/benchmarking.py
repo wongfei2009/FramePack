@@ -110,8 +110,7 @@ class PerformanceTracker:
             summary["cache"] = {
                 "hits": total_hits,
                 "total": total_queries,
-                "hit_rate": avg_hit_rate,
-                "estimated_time_saved": total_hits * 0.005  # Rough estimate of time saved per cache hit
+                "hit_rate": avg_hit_rate
             }
             
         # Process memory statistics
@@ -156,7 +155,6 @@ class PerformanceTracker:
             print(f"\nTeaCache Performance:")
             print(f"  Cache Hits: {cache['hits']} / {cache['total']} queries")
             print(f"  Hit Rate: {cache['hit_rate']:.2%}")
-            print(f"  Estimated Time Saved: {cache['estimated_time_saved']:.2f} seconds")
         else:
             # Even if we don't have cache stats, report that
             print(f"\nTeaCache Performance: No statistics collected")
