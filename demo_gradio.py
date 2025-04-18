@@ -758,8 +758,10 @@ with block:
     end_button.click(fn=end_process)
 
 
+# Launch with standard parameters
 block.launch(
     server_name=args.server,
     server_port=args.port,
     share=args.share,
+    max_threads=20    # Increase number of worker threads for handling requests
 )
