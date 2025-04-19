@@ -208,7 +208,6 @@ class FramePackModels:
 
         # Set transformer output to high quality for inference
         self.transformer.high_quality_fp32_output_for_inference = True
-        print('transformer.high_quality_fp32_output_for_inference = True')
 
         # Set model precision
         self.transformer.to(dtype=torch.bfloat16)
