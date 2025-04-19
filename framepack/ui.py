@@ -29,73 +29,136 @@ def create_ui(models, stream):
     quick_prompts = [[x] for x in quick_prompts]
     
     # Create UI with CSS
-    css = make_progress_bar_css()
+    css = make_progress_bar_css() + """
+    .tab-content {
+        padding: 15px 0;
+    }
+    .action-buttons {
+        display: flex;
+        gap: 10px;
+        margin: 10px 0;
+    }
+    .compact-slider .gradio-slider {
+        margin-bottom: 10px;
+    }
+    .info-text {
+        font-size: 0.9em;
+        color: #666;
+        margin: 5px 0;
+    }
+    .full-width-row {
+        width: 100%;
+    }
+    .input-tab, .output-tab, .params-tab {
+        padding: 10px;
+    }
+    .generation-info {
+        background-color: rgba(0,0,0,0.03);
+        border-radius: 5px;
+        padding: 10px;
+        margin: 10px 0;
+    }
+    """
+    
     block = gr.Blocks(css=css).queue()
     
     with block:
         gr.Markdown('# FramePack')
         
-        with gr.Row():
-            with gr.Column():
-                # Input components
-                input_image = gr.Image(sources='upload', type="numpy", label="Image", height=320)
-                prompt = gr.Textbox(label="Prompt", value='')
-                example_quick_prompts = gr.Dataset(
-                    samples=quick_prompts, 
-                    label='Quick List', 
-                    samples_per_page=1000, 
-                    components=[prompt]
-                )
-                example_quick_prompts.click(
-                    lambda x: x[0], 
-                    inputs=[example_quick_prompts], 
-                    outputs=prompt, 
-                    show_progress=False, 
-                    queue=False
-                )
-
-                # Action buttons
+        # Hidden parameters (not shown in UI but needed for function calls)
+        n_prompt = gr.Textbox(label="Negative Prompt", value="", visible=False)
+        cfg = gr.Slider(
+            label="CFG Scale", 
+            minimum=1.0, maximum=32.0, 
+            value=1.0, step=0.01, 
+            visible=False
+        )
+        rs = gr.Slider(
+            label="CFG Re-Scale", 
+            minimum=0.0, maximum=1.0, 
+            value=0.0, step=0.01, 
+            visible=False
+        )
+        latent_window_size = gr.Slider(
+            label="Latent Window Size", 
+            minimum=1, maximum=33, 
+            value=9, step=1, 
+            visible=False
+        )
+        
+        # Main tab interface
+        with gr.Tabs() as tabs:
+            # Tab 1: Input and Output Combined
+            with gr.TabItem("Generation", elem_classes="generation-tab"):
                 with gr.Row():
-                    start_button = gr.Button(value="Start Generation")
-                    end_button = gr.Button(value="End Generation", interactive=False)
-
-                # Generation parameters
-                with gr.Group():
-                    # TeaCache option
+                    # Left column for input
+                    with gr.Column(scale=1):
+                        # Input image and prompt
+                        input_image = gr.Image(sources='upload', type="numpy", label="Input Image", height=320)
+                        prompt = gr.Textbox(label="Prompt", value='', lines=4)
+                        example_quick_prompts = gr.Dataset(
+                            samples=quick_prompts, 
+                            label='Quick List', 
+                            samples_per_page=1000, 
+                            components=[prompt]
+                        )
+                        example_quick_prompts.click(
+                            lambda x: x[0], 
+                            inputs=[example_quick_prompts], 
+                            outputs=prompt, 
+                            show_progress=False, 
+                            queue=False
+                        )
+                        
+                        # Basic parameters everyone needs
+                        with gr.Row():
+                            seed = gr.Number(label="Seed", value=31337, precision=0)
+                            total_second_length = gr.Slider(
+                                label="Video Length (Seconds)", 
+                                minimum=1, maximum=120, 
+                                value=5, step=0.1
+                            )
+                        
+                        # Action buttons
+                        with gr.Row(elem_classes="action-buttons"):
+                            start_button = gr.Button(value="Start Generation", variant="primary", size="lg")
+                            end_button = gr.Button(value="End Generation", interactive=False, size="lg")
+                        
+                        # TeaCache removed from here and moved to Parameters tab
+                    
+                    # Right column for output
+                    with gr.Column(scale=1):
+                        # Preview image and video output
+                        preview_image = gr.Image(label="Next Latents", height=200, visible=False)
+                        result_video = gr.Video(
+                            label="Generated Video", 
+                            autoplay=True, 
+                            show_share_button=False, 
+                            height=320, 
+                            loop=True
+                        )
+                        
+                        # Generation progress information
+                        with gr.Group(elem_classes="generation-info"):
+                            progress_desc = gr.Markdown('', elem_classes='no-generating-animation')
+                            progress_bar = gr.HTML('', elem_classes='no-generating-animation')
+                        
+                        gr.Markdown(
+                            'Note: Ending actions are generated before starting actions due to inverted sampling. If starting action is not visible yet, wait for more frames.',
+                            elem_classes="info-text"
+                        )
+                
+            # Tab 2: Parameters
+            with gr.TabItem("Parameters", elem_classes="params-tab"):
+                with gr.Column(elem_classes="compact-slider"):
+                    # Add TeaCache at the top of parameters
                     use_teacache = gr.Checkbox(
                         label='Use TeaCache', 
                         value=True, 
                         info='Accelerates generation by reusing computation across steps. Faster speed, but may slightly affect quality of fine details like hands and fingers.'
                     )
-
-                    # Hidden parameters
-                    n_prompt = gr.Textbox(label="Negative Prompt", value="", visible=False)
-                    cfg = gr.Slider(
-                        label="CFG Scale", 
-                        minimum=1.0, maximum=32.0, 
-                        value=1.0, step=0.01, 
-                        visible=False
-                    )
-                    rs = gr.Slider(
-                        label="CFG Re-Scale", 
-                        minimum=0.0, maximum=1.0, 
-                        value=0.0, step=0.01, 
-                        visible=False
-                    )
-                    latent_window_size = gr.Slider(
-                        label="Latent Window Size", 
-                        minimum=1, maximum=33, 
-                        value=9, step=1, 
-                        visible=False
-                    )
-
-                    # Visible parameters
-                    seed = gr.Number(label="Seed", value=31337, precision=0)
-                    total_second_length = gr.Slider(
-                        label="Total Video Length (Seconds)", 
-                        minimum=1, maximum=120, 
-                        value=5, step=0.1
-                    )
+                    
+                    # All other parameters directly visible
                     steps = gr.Slider(
                         label="Steps", 
                         minimum=1, maximum=100, 
@@ -109,7 +172,7 @@ def create_ui(models, stream):
                         info='Changing this value is not recommended.'
                     )
                     gpu_memory_preservation = gr.Slider(
-                        label="GPU Inference Preserved Memory (GB) (larger means slower)", 
+                        label="GPU Inference Preserved Memory (GB)", 
                         minimum=4, maximum=128, 
                         value=6, step=0.1, 
                         info="Set this number to a larger value if you encounter OOM. Larger value causes slower speed."
@@ -119,24 +182,7 @@ def create_ui(models, stream):
                         minimum=0, maximum=100, 
                         value=16, step=1, 
                         info="Lower means better quality. 0 is uncompressed. Change to 16 if you get black outputs."
-                    )
-
-            with gr.Column():
-                # Output components
-                preview_image = gr.Image(label="Next Latents", height=200, visible=False)
-                result_video = gr.Video(
-                    label="Finished Frames", 
-                    autoplay=True, 
-                    show_share_button=False, 
-                    height=512, 
-                    loop=True
-                )
-                gr.Markdown(
-                    'Note that the ending actions will be generated before the starting actions due to the inverted sampling. ' 
-                    'If the starting action is not in the video, you just need to wait, and it will be generated later.'
-                )
-                progress_desc = gr.Markdown('', elem_classes='no-generating-animation')
-                progress_bar = gr.HTML('', elem_classes='no-generating-animation')
+                    )                    
         
         # Define process function
         def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, 
