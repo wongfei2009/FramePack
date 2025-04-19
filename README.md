@@ -40,7 +40,57 @@ In any case, you will directly see the generated frames since it is next-frame(-
 
 **Windows**:
 
-One-click-package will be released soon. Please come back tomorrow.
+Installing on Windows requires a few extra steps, especially for SageAttention:
+
+1. **Basic Installation**:
+   
+   We recommend having an independent Python 3.11 installation.
+
+   ```
+   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+   pip install -r requirements.txt
+   ```
+
+2. **Installing SageAttention on Windows**:
+
+   SageAttention requires Triton, which traditionally has been challenging to install on Windows. Follow these steps:
+
+   a. **Prerequisites**:
+      - Visual Studio 2022 Build Tools with "Desktop development with C++" workload
+      - CUDA Toolkit 12.x compatible with your GPU
+      - Add CUDA to your PATH environment variable
+
+   b. **Install Triton for Windows**:
+      - Use the Windows-compatible fork of Triton:
+      ```
+      pip install https://github.com/woct0rdho/triton-windows/releases/download/v3.2.0-windows.post10/triton-3.2.0-cp311-cp311-win_amd64.whl
+      ```
+      (Choose the correct wheel for your Python version)
+
+   c. **Install SageAttention**:
+      - Once Triton is installed, you can install SageAttention:
+      ```
+      pip install sageattention==1.0.6
+      ```
+
+   d. **Alternative Method**:
+      - If the above method doesn't work, you can also try using the Windows-specific wheels:
+      ```
+      pip install https://github.com/woct0rdho/SageAttention/releases/download/v2.1.1-windows/sageattention-2.1.1-cp311-cp311-win_amd64.whl
+      ```
+      (Choose the wheel matching your Python and PyTorch versions)
+
+3. **Starting the Application**:
+
+   ```
+   python app.py
+   ```
+
+   Note that it supports `--share`, `--port`, `--server`, and so on.
+
+The software supports PyTorch attention, xformers, flash-attn, and sage-attention. By default, it will just use PyTorch attention. 
+
+Note: You are highly recommended to first try without sage-attention since it will influence results, though the influence is minimal.
 
 **Linux**:
 
