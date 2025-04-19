@@ -76,7 +76,7 @@ Installing on Windows requires a few extra steps, especially for SageAttention:
 
    Note that it supports `--share`, `--port`, `--server`, and so on.
 
-The software supports PyTorch attention, xformers, flash-attn, and sage-attention. By default, it will just use PyTorch attention. 
+The software supports PyTorch attention and sage-attention. By default, it will just use PyTorch attention. 
 
 Note: You are highly recommended to first try without sage-attention since it will influence results, though the influence is minimal.
 
