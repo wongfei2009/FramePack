@@ -79,7 +79,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     performance_tracker.start_timer()
     
     # Calculate number of latent sections
-    total_latent_sections = (total_second_length * 30) / (latent_window_size * 4)
+    total_latent_sections = (total_second_length * 24) / (latent_window_size * 4)
     total_latent_sections = int(max(round(total_latent_sections), 1))
 
     # Generate job ID for file naming
@@ -352,7 +352,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     mem_str = ""
                     
                 hint = f'Sampling {current_step}/{steps}{eta_str}{mem_str}'
-                desc = f'Total generated frames: {int(max(0, total_generated_latent_frames * 4 - 3))}, Video length: {max(0, (total_generated_latent_frames * 4 - 3) / 30) :.2f} seconds (FPS-30). The video is being extended now ...'
+                desc = f'Total generated frames: {int(max(0, total_generated_latent_frames * 4 - 3))}, Video length: {max(0, (total_generated_latent_frames * 4 - 3) / 24) :.2f} seconds (FPS-24). The video is being extended now ...'
                 stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
 
             # Sample the section
@@ -474,7 +474,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
             # Track video saving time
             performance_tracker.start_timer("video_save")
-            save_bcthw_as_mp4(history_pixels, output_filename, fps=30, crf=mp4_crf)
+            save_bcthw_as_mp4(history_pixels, output_filename, fps=24, crf=mp4_crf)
             video_save_time = performance_tracker.end_timer("video_save")
             
             print(f'Decoded. Current latent shape {real_history_latents.shape}; pixel shape {history_pixels.shape}')
@@ -515,6 +515,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     
     # Send completion message with total frames count
     final_frame_count = int(max(0, total_generated_latent_frames * 4 - 3))
-    final_video_length = max(0, (total_generated_latent_frames * 4 - 3) / 30)
+    final_video_length = max(0, (total_generated_latent_frames * 4 - 3) / 24)
     stream.output_queue.push(('end', (final_frame_count, final_video_length)))
     return output_filename
