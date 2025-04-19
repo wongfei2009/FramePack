@@ -55,12 +55,7 @@ Installing on Windows requires a few extra steps, especially for SageAttention:
 
    SageAttention requires Triton, which traditionally has been challenging to install on Windows. Follow these steps:
 
-   a. **Prerequisites**:
-      - Visual Studio 2022 Build Tools with "Desktop development with C++" workload
-      - CUDA Toolkit 12.x compatible with your GPU
-      - Add CUDA to your PATH environment variable
-
-   b. **Install Triton for Windows**:
+   a. **Install Triton for Windows**:
       - Use the Windows-compatible fork of Triton:
       ```
       pip install https://github.com/woct0rdho/triton-windows/releases/download/v3.2.0-windows.post10/triton-3.2.0-cp311-cp311-win_amd64.whl
@@ -72,14 +67,7 @@ Installing on Windows requires a few extra steps, especially for SageAttention:
       ```
       pip install sageattention==1.0.6
       ```
-
-   d. **Alternative Method**:
-      - If the above method doesn't work, you can also try using the Windows-specific wheels:
-      ```
-      pip install https://github.com/woct0rdho/SageAttention/releases/download/v2.1.1-windows/sageattention-2.1.1-cp311-cp311-win_amd64.whl
-      ```
-      (Choose the wheel matching your Python and PyTorch versions)
-
+            
 3. **Starting the Application**:
 
    ```
