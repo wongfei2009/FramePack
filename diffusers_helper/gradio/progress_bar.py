@@ -71,6 +71,20 @@ progress::after {
   margin-left: 5px; /* Add spacing between the progress bar and the text */
 }
 
+.loader-completed {
+  border: 8px solid #f3f3f3;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  background-color: #4CAF50;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: bold;
+}
+
 .no-generating-animation > .generating {
   display: none !important;
 }
@@ -79,7 +93,20 @@ progress::after {
 
 
 def make_progress_bar_html(number, text):
-    return progress_html.replace('*number*', str(number)).replace('*text*', text)
+    # For 100% completion, add completed styling
+    if number == 100 and 'completed' in text.lower():
+        completed_html = '''
+        <div class="loader-container">
+          <div class="loader-completed">✓</div>
+          <div class="progress-container">
+            <progress value="100" max="100"></progress>
+          </div>
+          <span>*text*</span>
+        </div>
+        '''
+        return completed_html.replace('*text*', text)
+    else:
+        return progress_html.replace('*number*', str(number)).replace('*text*', text)
 
 
 def make_progress_bar_css():

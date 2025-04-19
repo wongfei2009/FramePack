@@ -178,7 +178,16 @@ def create_ui(models, stream):
                     yield gr.update(), gr.update(visible=True, value=preview), desc, html, gr.update(interactive=False), gr.update(interactive=True)
 
                 if flag == 'end':
-                    yield output_filename, gr.update(visible=False), gr.update(), '', gr.update(interactive=True), gr.update(interactive=False)
+                    # Check if we received frame stats
+                    if data is not None and isinstance(data, tuple) and len(data) == 2:
+                        final_frame_count, final_video_length = data
+                        completion_desc = f'✅ Generation completed! Total frames: {final_frame_count}, Video length: {final_video_length:.2f} seconds (FPS-30)'
+                    else:
+                        completion_desc = '✅ Generation completed!'
+                    
+                    # Pass completion message to UI with completed progress bar
+                    completed_progress_bar = make_progress_bar_html(100, "Generation completed!")
+                    yield output_filename, gr.update(visible=False), completion_desc, completed_progress_bar, gr.update(interactive=True), gr.update(interactive=False)
                     break
         
         # Define end process function

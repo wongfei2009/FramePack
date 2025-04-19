@@ -513,5 +513,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             print(f"Hit rate: {hit_rate:.2f}%")
         print("-------------------------------------\n")
     
-    stream.output_queue.push(('end', None))
+    # Send completion message with total frames count
+    final_frame_count = int(max(0, total_generated_latent_frames * 4 - 3))
+    final_video_length = max(0, (total_generated_latent_frames * 4 - 3) / 30)
+    stream.output_queue.push(('end', (final_frame_count, final_video_length)))
     return output_filename
