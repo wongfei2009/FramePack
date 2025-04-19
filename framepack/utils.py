@@ -16,13 +16,8 @@ def debug_import_paths(module_name="sageattention"):
     Returns:
         Boolean indicating if the module was found
     """
-    print(f"\n--- Debug import paths for {module_name} ---")
-    print(f"Python executable: {sys.executable}")
-    print(f"Python version: {sys.version}")
-    
     # Check if the module is already imported
     if module_name in sys.modules:
-        print(f"Module {module_name} is already imported at: {sys.modules[module_name].__file__}")
         return True
     
     # Try to find the module in sys.path
@@ -30,16 +25,9 @@ def debug_import_paths(module_name="sageattention"):
     for path in sys.path:
         spec = importlib.util.find_spec(module_name, [path])
         if spec is not None:
-            print(f"Module {module_name} found at: {spec.origin}")
             found = True
             break
     
-    if not found:
-        print(f"Module {module_name} not found in any of these paths:")
-        for i, path in enumerate(sys.path):
-            print(f"  {i}: {path}")
-    
-    print("--- End debug info ---\n")
     return found
 
 def setup_sage_attention():

@@ -29,31 +29,32 @@ if torch.backends.cuda.mem_efficient_sdp_enabled():
 if torch.backends.cuda.cudnn_sdp_enabled():
     enabled_backends.append("cudnn")
 
-print("Currently enabled native sdp backends:", enabled_backends)
+# Silently get backend info without printing
+# print("Currently enabled native sdp backends:", enabled_backends)
 
 try:
     # raise NotImplementedError
     from xformers.ops import memory_efficient_attention as xformers_attn_func
-    print('Xformers is installed!')
+    # print('Xformers is installed!')
 except:
-    print('Xformers is not installed!')
+    # print('Xformers is not installed!')
     xformers_attn_func = None
 
 try:
     # raise NotImplementedError
     from flash_attn import flash_attn_varlen_func, flash_attn_func
-    print('Flash Attn is installed!')
+    # print('Flash Attn is installed!')
 except:
-    print('Flash Attn is not installed!')
+    # print('Flash Attn is not installed!')
     flash_attn_varlen_func = None
     flash_attn_func = None
 
 try:
     # raise NotImplementedError
     from sageattention import sageattn_varlen, sageattn
-    print('Sage Attn is installed!')
+    # print('Sage Attn is installed!')
 except:
-    print('Sage Attn is not installed!')
+    # print('Sage Attn is not installed!')
     sageattn_varlen = None
     sageattn = None
 

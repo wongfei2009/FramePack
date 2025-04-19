@@ -76,24 +76,27 @@ def configure_sage_attention(transformer, has_sage_attn=False):
         transformer: The transformer model
         has_sage_attn: Whether Sage Attention is available
     """
-    print("Activating Sage Attention...")
+    # print("Activating Sage Attention...")
     try:
         if has_sage_attn:
             # Method 1: Try to set it directly if using appropriate attention mechanism
             if hasattr(transformer, 'set_use_sage_attention'):
                 transformer.set_use_sage_attention(True)
-                print("Sage Attention activated successfully via direct method")
+                # print("Sage Attention activated successfully via direct method")
             # Method 2: Try to set the attention processor
             elif hasattr(transformer, "set_attn_processor"):
                 transformer.set_attn_processor({"sage_attention": {}})
-                print("Sage Attention activated via attention processor")
+                # print("Sage Attention activated via attention processor")
             else:
-                print("This model already uses Sage Attention by default when available")
+                # print("This model already uses Sage Attention by default when available")
+                pass
         else:
-            print("Sage Attention module detected but will be used in fallback mode")
+            # print("Sage Attention module detected but will be used in fallback mode")
+            pass
     except Exception as e:
-        print(f"Failed to activate Sage Attention: {e}")
-        print("Continuing without Sage Attention optimization")
+        # print(f"Failed to activate Sage Attention: {e}")
+        # print("Continuing without Sage Attention optimization")
+        pass
 
 class FramePackModels:
     """

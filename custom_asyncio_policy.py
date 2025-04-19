@@ -37,4 +37,5 @@ def apply_asyncio_fixes():
             category=DeprecationWarning
         )
         
-        print("Applied custom asyncio Windows fixes to suppress connection reset errors")
+        # Silently apply fixes without printing to console
+        # print("Applied custom asyncio Windows fixes to suppress connection reset errors")
