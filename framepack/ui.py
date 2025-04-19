@@ -58,6 +58,28 @@ def create_ui(models, stream):
         padding: 10px;
         margin: 10px 0;
     }
+    .seed-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+    .seed-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .seed-button {
+        margin-top: 0;
+        border-radius: 6px !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+        width: auto !important;
+    }
+    .seed-button:hover {
+        box-shadow: 0 2px 3px rgba(0,0,0,0.1) !important;
+        transform: translateY(-1px) !important;
+    }
     """
     
     block = gr.Blocks(css=css).queue()
@@ -111,13 +133,17 @@ def create_ui(models, stream):
                         )
                         
                         # Basic parameters everyone needs
-                        with gr.Row():
-                            seed = gr.Number(label="Seed", value=31337, precision=0)
-                            total_second_length = gr.Slider(
-                                label="Video Length (Seconds)", 
-                                minimum=1, maximum=120, 
-                                value=5, step=0.1
-                            )
+                        with gr.Row(equal_height=True):
+                            with gr.Column(scale=1, elem_classes="seed-group"):
+                                seed = gr.Number(label="Seed", value=31337, precision=0)
+                                random_seed_btn = gr.Button("🎲 Random Seed", variant="secondary", size="sm", elem_classes="seed-button")
+                            
+                            with gr.Column(scale=1):
+                                total_second_length = gr.Slider(
+                                    label="Video Length (Seconds)", 
+                                    minimum=1, maximum=120, 
+                                    value=5, step=0.1
+                                )
                         
                         # Action buttons
                         with gr.Row(elem_classes="action-buttons"):
@@ -252,5 +278,22 @@ def create_ui(models, stream):
         )
         
         end_button.click(fn=end_process)
+        
+        # Connect random seed button
+        def generate_random_seed():
+            """Generate a random seed value."""
+            import random
+            import time
+            
+            # Use current time as part of the seed to ensure uniqueness
+            random.seed(time.time())
+            return int(random.randint(0, 2147483647))
+        
+        random_seed_btn.click(
+            fn=generate_random_seed,
+            inputs=[],
+            outputs=[seed],
+            show_progress=False
+        )
     
     return block
