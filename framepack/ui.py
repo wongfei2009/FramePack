@@ -101,12 +101,7 @@ def create_ui(models, stream):
             value=0.0, step=0.01, 
             visible=False
         )
-        latent_window_size = gr.Slider(
-            label="Latent Window Size", 
-            minimum=1, maximum=33, 
-            value=9, step=1, 
-            visible=False
-        )
+        # Latent window size is now defined in the Parameters tab
         
         # Main tab interface
         with gr.Tabs() as tabs:
@@ -142,7 +137,7 @@ def create_ui(models, stream):
                                 total_second_length = gr.Slider(
                                     label="Video Length (Seconds)", 
                                     minimum=1, maximum=120, 
-                                    value=5, step=0.1
+                                    value=6, step=0.1
                                 )
                         
                         # Action buttons
@@ -203,6 +198,13 @@ def create_ui(models, stream):
                         value=6, step=0.1, 
                         info="Set this number to a larger value if you encounter OOM. Larger value causes slower speed."
                     )
+                    latent_window_size = gr.Slider(
+                        label="Latent Window Size", 
+                        minimum=1, maximum=33, 
+                        value=13, step=1, 
+                        info="Controls frames per section. For 24 FPS: 7=25 frames (≈1 sec), 9=33 frames (≈1.4 sec), 13=49 frames (≈2 sec). Higher values give better temporal coherence, lower values use less VRAM."
+                    )
+                    
                     mp4_crf = gr.Slider(
                         label="MP4 Compression", 
                         minimum=0, maximum=100, 
@@ -253,7 +255,7 @@ def create_ui(models, stream):
                     # Check if we received frame stats
                     if data is not None and isinstance(data, tuple) and len(data) == 2:
                         final_frame_count, final_video_length = data
-                        completion_desc = f'✅ Generation completed! Total frames: {final_frame_count}, Video length: {final_video_length:.2f} seconds (FPS-30)'
+                        completion_desc = f'✅ Generation completed! Total frames: {final_frame_count}, Video length: {final_video_length:.2f} seconds (FPS-24)'
                     else:
                         completion_desc = '✅ Generation completed!'
                     
