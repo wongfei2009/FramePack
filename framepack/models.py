@@ -237,7 +237,7 @@ class FramePackModels:
             self.vae.to(gpu)
             self.transformer.to(gpu)
 
-    def prepare_for_inference(self, gpu_memory_preservation, use_teacache, steps):
+    def prepare_for_inference(self, gpu_memory_preservation, use_teacache, steps, rel_l1_thresh=0.15):
         """
         Prepare models for inference.
         
@@ -245,6 +245,7 @@ class FramePackModels:
             gpu_memory_preservation: Amount of GPU memory to preserve during inference
             use_teacache: Whether to use TeaCache for acceleration
             steps: Number of inference steps
+            rel_l1_thresh: Threshold for TeaCache relative L1 distance (lower = faster but lower quality)
         """
         if not self.high_vram:
             # Clean up memory before loading transformer
@@ -262,12 +263,21 @@ class FramePackModels:
         # Configure TeaCache if enabled
         if use_teacache:
             free_mem = get_cuda_free_memory_gb(gpu)
-            # Optimal default value for most cases
-            thresh_value = 0.15
-            print(f"Configuring TeaCache with {free_mem:.1f}GB available VRAM, {steps} steps, and threshold {thresh_value:.4f}")
+            print(f"Configuring TeaCache with {free_mem:.1f}GB available VRAM, {steps} steps, and threshold {rel_l1_thresh:.4f}")
             
-            # Use the threshold value with the updated function
-            configure_teacache(self.transformer, vram_gb=free_mem, steps=steps, rel_l1_thresh=thresh_value)
+            # Try direct initialization first - safer approach
+            try:
+                # Directly initialize TeaCache with parameters
+                self.transformer.initialize_teacache(
+                    enable_teacache=True,
+                    num_steps=steps,
+                    rel_l1_thresh=float(rel_l1_thresh)
+                )
+                print(f"Direct TeaCache initialization successful with threshold={rel_l1_thresh:.4f}")
+            except Exception as e:
+                print(f"Direct initialization failed: {e}, falling back to configure_teacache")
+                # Fall back to the helper function
+                configure_teacache(self.transformer, vram_gb=free_mem, steps=steps, rel_l1_thresh=rel_l1_thresh)
             
             # Track memory after TeaCache configuration
             if torch.cuda.is_available():

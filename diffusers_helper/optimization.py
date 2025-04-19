@@ -76,40 +76,12 @@ def configure_teacache(transformer, vram_gb, steps=25, rel_l1_thresh=None):
     
     # Dynamically adjust rel_l1_thresh based on multiple factors
     if hasattr(transformer, 'rel_l1_thresh') or (hasattr(transformer, 'initialize_teacache') and 'rel_l1_thresh' in transformer.initialize_teacache.__code__.co_varnames):
-        # Base threshold values calibrated to VRAM tiers
-        if vram_gb > 20:  # High-end cards (RTX 3090, 4090, etc)
-            print(f"Using optimized TeaCache for high VRAM ({vram_gb:.1f} GB)")
-            base_thresh = 0.18  # Higher quality baseline for high VRAM
-        elif vram_gb > 12:  # Mid-range cards (RTX 3080, etc)
-            print(f"Using optimized TeaCache for medium VRAM ({vram_gb:.1f} GB)")
-            base_thresh = 0.14  # Balanced baseline for medium VRAM
-        elif vram_gb > 8:  # Lower-end cards (RTX 3060, etc)
-            print(f"Using optimized TeaCache for low VRAM ({vram_gb:.1f} GB)")
-            base_thresh = 0.11  # Speed-focused baseline for low VRAM
-        else:  # Very limited VRAM
-            print(f"Using optimized TeaCache for very low VRAM ({vram_gb:.1f} GB)")
-            base_thresh = 0.09  # Maximum speed baseline for very low VRAM
+        # Always use the provided threshold from UI
+        final_thresh = float(rel_l1_thresh)
         
-        # Apply step factor adjustment - more steps need higher threshold for quality
-        # Apply additional adjustment based on precision
-        if precision == 'float32':
-            precision_factor = 1.1  # Higher threshold for fp32 (better quality)
-        elif precision == 'bfloat16':
-            precision_factor = 1.0  # Baseline for bf16
-        else:  # float16 or unknown
-            precision_factor = 0.9  # Lower threshold for fp16 (faster)
-            
-        # Use manual threshold if provided, otherwise calculate dynamically
-        if rel_l1_thresh is not None:
-            final_thresh = float(rel_l1_thresh)
-            print(f"Using manually specified TeaCache threshold: {final_thresh:.4f}")
-        else:
-            # Calculate final threshold with all factors
-            final_thresh = base_thresh * step_factor * precision_factor
-            
-            # Clamp to reasonable range to prevent extreme values
-            final_thresh = max(0.08, min(0.25, final_thresh))
-            print(f"Dynamic TeaCache threshold: {final_thresh:.4f} (base: {base_thresh:.4f}, step factor: {step_factor:.2f}, precision: {precision})")
+        # Ensure the threshold is within safe limits
+        final_thresh = max(0.08, min(0.25, final_thresh))
+        print(f"Using TeaCache threshold: {final_thresh:.4f}")
         
         teacache_params['rel_l1_thresh'] = final_thresh
     

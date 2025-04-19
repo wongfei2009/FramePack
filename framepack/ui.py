@@ -137,8 +137,16 @@ def create_ui(models, stream):
                                 total_second_length = gr.Slider(
                                     label="Video Length (Seconds)", 
                                     minimum=1, maximum=120, 
-                                    value=6, step=0.1
+                                    value=5, step=0.1
                                 )
+                        
+                        # Resolution scale selection
+                        resolution_scale = gr.Radio(
+                            label="Resolution Scale",
+                            choices=["Full (1x)", "Half (0.5x)"],
+                            value="Full (1x)",
+                            info="Half resolution provides much faster generation for previews."
+                        )
                         
                         # Action buttons
                         with gr.Row(elem_classes="action-buttons"):
@@ -179,6 +187,13 @@ def create_ui(models, stream):
                         info='Accelerates generation by reusing computation across steps. Faster speed, but may slightly affect quality of fine details like hands and fingers.'
                     )
                     
+                    teacache_thresh = gr.Slider(
+                        label="TeaCache Threshold", 
+                        minimum=0.08, maximum=0.25, 
+                        value=0.15, step=0.01, 
+                        info='Controls cache reuse frequency. Higher values = faster generation but potential quality loss. Lower values = slower but higher quality.'
+                    )
+                    
                     # All other parameters directly visible
                     steps = gr.Slider(
                         label="Steps", 
@@ -205,6 +220,8 @@ def create_ui(models, stream):
                         info="Controls frames per section. For 24 FPS: 7=25 frames (≈1 sec), 9=33 frames (≈1.4 sec), 13=49 frames (≈2 sec). Higher values give better temporal coherence, lower values use less VRAM."
                     )
                     
+
+                    
                     mp4_crf = gr.Slider(
                         label="MP4 Compression", 
                         minimum=0, maximum=100, 
@@ -214,7 +231,7 @@ def create_ui(models, stream):
         
         # Define process function
         def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-                    steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf):
+                    steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf):
             """
             Process the video generation request.
             
@@ -233,7 +250,7 @@ def create_ui(models, stream):
             async_run(
                 worker, 
                 input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf, 
+                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, 
                 models, stream
             )
 
@@ -274,7 +291,7 @@ def create_ui(models, stream):
             fn=process,
             inputs=[
                 input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf
+                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf
             ],
             outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button]
         )

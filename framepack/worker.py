@@ -40,7 +40,7 @@ from diffusers_helper.gradio.progress_bar import make_progress_bar_html
 
 @torch.no_grad()
 def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-           steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, mp4_crf, 
+           steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, 
            models, stream, outputs_folder='./outputs/'):
     """
     Worker function for generating videos with FramePack.
@@ -71,8 +71,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
     gpu_memory_preservation = float(gpu_memory_preservation)
     use_teacache = bool(use_teacache)
     
-    # Fixed teacache threshold
-    thresh_value = 0.15  # Optimal default value for most cases
+    # Process resolution scale
+    resolution_scale_factor = 0.5 if resolution_scale == "Half (0.5x)" else 1.0
+    print(f"Selected resolution scale: {resolution_scale} (factor: {resolution_scale_factor})")
+    
+    # Get TeaCache threshold from UI
+    thresh_value = float(teacache_thresh)
     
     # Reset performance tracker
     performance_tracker.reset()
@@ -96,7 +100,6 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Warming up model...'))))
         performance_tracker.start_timer("warmup")
         models.transformer.to(gpu)
-        warmup_model(models.transformer, device=gpu, dtype=torch.bfloat16)
         if not models.high_vram:
             models.transformer.to(cpu)
         aggressive_memory_cleanup()
@@ -149,10 +152,26 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         # Process input image
         stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Image processing ...'))))
 
-        # Resize image to bucket size
+        # Apply resolution scale to bucket selection
         H, W, C = input_image.shape
-        height, width = find_nearest_bucket(H, W, resolution=640)
+        
+        # Calculate target resolution based on scale factor
+        # Use exact values rather than scaling to avoid rounding issues
+        if resolution_scale == "Half (0.5x)":
+            target_resolution = 320  # Exactly half of 640
+        else:
+            target_resolution = 640  # Default full resolution
+            
+        print(f"Input image dimensions: {W}x{H}")
+        print(f"Target resolution parameter: {target_resolution}")
+        
+        # Get bucket dimensions
+        height, width = find_nearest_bucket(H, W, resolution=target_resolution)
+        print(f"Selected bucket resolution: {width}x{height}")
+        
+        # Resize the image
         input_image_np = resize_and_center_crop(input_image, target_width=width, target_height=height)
+        print(f"Resized image to: {width}x{height}")
 
         # Save processed input image
         Image.fromarray(input_image_np).save(os.path.join(outputs_folder, f'{job_id}.png'))
@@ -249,8 +268,8 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             clean_latents_post, clean_latents_2x, clean_latents_4x = history_latents[:, :, :1 + 2 + 16, :, :].split([1, 2, 16], dim=2)
             clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
 
-            # Prepare model for inference
-            models.prepare_for_inference(gpu_memory_preservation, use_teacache, steps)
+            # Prepare model for inference with custom threshold
+            models.prepare_for_inference(gpu_memory_preservation, use_teacache, steps, thresh_value)
             
             # Track memory before sampling
             performance_tracker.track_memory("before_sampling")
