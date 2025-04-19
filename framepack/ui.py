@@ -216,7 +216,7 @@ def create_ui(models, stream):
                     latent_window_size = gr.Slider(
                         label="Latent Window Size", 
                         minimum=1, maximum=33, 
-                        value=13, step=1, 
+                        value=9, step=1, 
                         info="Controls frames per section. For 24 FPS: 7=25 frames (≈1 sec), 9=33 frames (≈1.4 sec), 13=49 frames (≈2 sec). Higher values give better temporal coherence, lower values use less VRAM."
                     )
                     
