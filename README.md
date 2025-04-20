@@ -53,8 +53,10 @@ Installing on Windows requires a few extra steps, especially for SageAttention:
 
 2. **Installing SageAttention on Windows**:
 
-   SageAttention requires Triton, which traditionally has been challenging to install on Windows. Follow these steps:
+   SageAttention requires Triton, which traditionally has been challenging to install on Windows. There are two options for installing SageAttention:
 
+   **Option 1: SageAttention 1.0.6 (Original)**
+   
    a. **Install Triton for Windows**:
       - Use the Windows-compatible fork of Triton:
       ```
@@ -62,11 +64,19 @@ Installing on Windows requires a few extra steps, especially for SageAttention:
       ```
       (Choose the correct wheel for your Python version)
 
-   c. **Install SageAttention**:
+   b. **Install SageAttention 1.0.6**:
       - Once Triton is installed, you can install SageAttention:
       ```
       pip install sageattention==1.0.6
       ```
+
+   **Option 2: SageAttention 2.1.1 (Recommended, faster)**
+   
+   - For Python 3.11 with PyTorch 2.6.0 (CUDA 12.6), you can directly install the prebuilt wheel:
+   ```
+   pip install https://github.com/woct0rdho/SageAttention/releases/download/v2.1.1-windows/sageattention-2.1.1+cu126torch2.6.0-cp311-cp311-win_amd64.whl
+   ```
+   - This newer version offers improved performance without requiring separate Triton installation.
             
 3. **Starting the Application**:
 
@@ -76,9 +86,9 @@ Installing on Windows requires a few extra steps, especially for SageAttention:
 
    Note that it supports `--share`, `--port`, `--server`, and so on.
 
-The software supports PyTorch attention and sage-attention. By default, it will just use PyTorch attention. 
+The software now prioritizes SageAttention when available, falling back to PyTorch native attention when not available. This optimization improves performance while maintaining quality.
 
-Note: You are highly recommended to first try without sage-attention since it will influence results, though the influence is minimal.
+Note: You can install SageAttention 2.1.1 (recommended) for optimal performance. The project has been updated to use SageAttention specifically at the function level rather than globally enabling it for the entire model, providing better stability.
 
 **Linux**:
 
@@ -95,11 +105,22 @@ Note that it supports `--share`, `--port`, `--server`, and so on.
 
 The software supports PyTorch attention, xformers, flash-attn, sage-attention. By default, it will just use PyTorch attention. You can install those attention kernels if you know how. 
 
-For example, to install sage-attention (linux):
+You can install attention kernels for improved performance:
 
-    pip install sageattention==1.0.6
+**SageAttention (Recommended)**:
+- **SageAttention 1.0.6 (Original)**:
+  ```
+  pip install sageattention==1.0.6
+  ```
 
-However, you are highly recommended to first try without sage-attention since it will influence results, though the influence is minimal.
+- **SageAttention 2.1.1 (Faster, check compatibility)**:
+  For Linux with PyTorch 2.6.0, check the latest builds at:
+  https://github.com/thuml/SageAttention/releases
+
+**Other attention mechanisms**:
+- You can also install xformers or flash-attention following their respective installation guides.
+
+Note: The project now prioritizes Sage → PyTorch attention, providing better performance. You can run the application without installing any special attention mechanisms (it will use PyTorch's native attention), but installing SageAttention is recommended for optimal speed.
 
 # GUI
 
