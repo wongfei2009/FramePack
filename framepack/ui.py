@@ -206,7 +206,7 @@ def create_ui(models, stream):
     }
     """
     
-    block = gr.Blocks(css=css).queue()
+    block = gr.Blocks(css=css).queue() # Remove stateful=True
     
     with block:
         gr.Markdown('# FramePack')
@@ -649,5 +649,45 @@ def create_ui(models, stream):
             outputs=[seed],
             show_progress=False
         )
-    
+
+        # --- Add the .load() event handler ---
+        # List ALL components whose values should be loaded from parameters.json on refresh
+        components_to_load = [
+            seed, total_second_length, resolution_scale, use_teacache,
+            teacache_thresh, steps, gs, gpu_memory_preservation,
+            latent_window_size, enable_compile, mp4_crf, prompt,
+            n_prompt, cfg, rs
+        ]
+
+        def load_saved_params():
+            """Loads parameters from config and returns them in the correct order."""
+            logger.info("Reloading parameters for UI on page load...")
+            params = param_config.get_all_parameters()
+            # Return values in the *exact same order* as components_to_load list
+            return [
+                params.get("seed", 31337),
+                params.get("total_second_length", 5),
+                params.get("resolution_scale", "Full (1x)"),
+                params.get("use_teacache", True),
+                params.get("teacache_thresh", 0.15),
+                params.get("steps", 25),
+                params.get("gs", 10.0),
+                params.get("gpu_memory_preservation", 6),
+                params.get("latent_window_size", 9),
+                params.get("enable_compile", False),
+                params.get("mp4_crf", 16),
+                params.get("prompt", ''),
+                params.get("n_prompt", ''),
+                params.get("cfg", 1.0),
+                params.get("rs", 0.0)
+            ]
+
+        block.load(
+            fn=load_saved_params,
+            inputs=[],
+            outputs=components_to_load,
+            show_progress=False # Optional: hide progress indicator for this load
+        )
+        # --- End of .load() event handler ---
+
     return block
