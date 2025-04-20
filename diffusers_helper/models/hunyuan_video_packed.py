@@ -108,18 +108,12 @@ def apply_rotary_emb_transposed(x, freqs_cis):
 
 def attn_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_seqlen_q, max_seqlen_kv):
     if cu_seqlens_q is None and cu_seqlens_kv is None and max_seqlen_q is None and max_seqlen_kv is None:
+        # First try Sage Attention
         if sageattn is not None:
             x = sageattn(q, k, v, tensor_layout='NHD')
             return x
 
-        if flash_attn_func is not None:
-            x = flash_attn_func(q, k, v)
-            return x
-
-        if xformers_attn_func is not None:
-            x = xformers_attn_func(q, k, v)
-            return x
-
+        # Directly fall back to PyTorch's native implementation
         x = torch.nn.functional.scaled_dot_product_attention(q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)).transpose(1, 2)
         return x
 
@@ -127,12 +121,16 @@ def attn_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_seqlen_q, max_seq
     q = q.view(q.shape[0] * q.shape[1], *q.shape[2:])
     k = k.view(k.shape[0] * k.shape[1], *k.shape[2:])
     v = v.view(v.shape[0] * v.shape[1], *v.shape[2:])
+    
+    # Prioritize Sage Attention for variable length
     if sageattn_varlen is not None:
         x = sageattn_varlen(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_seqlen_q, max_seqlen_kv)
+    # Fall back to Flash Attention if needed (since we need variable length support)
     elif flash_attn_varlen_func is not None:
         x = flash_attn_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_seqlen_q, max_seqlen_kv)
     else:
         raise NotImplementedError('No Attn Installed!')
+        
     x = x.view(batch_size, max_seqlen_q, *x.shape[2:])
     return x
 
