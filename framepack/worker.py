@@ -35,7 +35,8 @@ from diffusers_helper.benchmarking import performance_tracker
 from diffusers_helper.clip_vision import hf_clip_vision_encode
 from diffusers_helper.gradio.progress_bar import make_progress_bar_html
 
-@torch.no_grad()@torch.no_grad()
+@torch.no_grad()
+@torch.no_grad()
 def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
            steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_compile,
            models, stream, outputs_folder='./outputs/'):
@@ -173,7 +174,8 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
         # Save processed input image
         Image.fromarray(input_image_np).save(os.path.join(outputs_folder, f'{job_id}.png'))
 
-        # Convert to PyTorch tensor        # Convert to PyTorch tensor
+        # Convert to PyTorch tensor
+        # Convert to PyTorch tensor
         input_image_pt = torch.from_numpy(input_image_np).float() / 127.5 - 1
         input_image_pt = input_image_pt.permute(2, 0, 1)[None, :, None]
 
@@ -262,7 +264,8 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
             # Use an improved padding sequence for longer videos
             latent_paddings = [3] + [2] * (total_latent_sections - 3) + [1, 0]
 
-        # Generate video in progressive sections        # Generate video in progressive sections
+        # Generate video in progressive sections
+        # Generate video in progressive sections
         output_filename = None
         for i_section, latent_padding in enumerate(latent_paddings):
             is_first_section = i_section == 0
@@ -282,7 +285,8 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 print("Adding end frame to history latents for first section")
                 history_latents[:, :, 0:1, :, :] = end_frame_latent
 
-            # Prepare indices for section generation            # Prepare indices for section generation
+            # Prepare indices for section generation
+            # Prepare indices for section generation
             indices = torch.arange(0, sum([1, latent_padding_size, latent_window_size, 1, 2, 16])).unsqueeze(0)
             clean_latent_indices_pre, _, latent_indices, clean_latent_indices_post, clean_latent_2x_indices, clean_latent_4x_indices = indices.split([1, latent_padding_size, latent_window_size, 1, 2, 16], dim=1)
             clean_latent_indices = torch.cat([clean_latent_indices_pre, clean_latent_indices_post], dim=1)
