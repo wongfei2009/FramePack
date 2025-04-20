@@ -35,8 +35,8 @@ from diffusers_helper.benchmarking import performance_tracker
 from diffusers_helper.clip_vision import hf_clip_vision_encode
 from diffusers_helper.gradio.progress_bar import make_progress_bar_html
 
-@torch.no_grad()
-def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, 
+@torch.no_grad()@torch.no_grad()
+def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
            steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_compile,
            models, stream, outputs_folder='./outputs/'):
     """
@@ -173,9 +173,23 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         # Save processed input image
         Image.fromarray(input_image_np).save(os.path.join(outputs_folder, f'{job_id}.png'))
 
-        # Convert to PyTorch tensor
+        # Convert to PyTorch tensor        # Convert to PyTorch tensor
         input_image_pt = torch.from_numpy(input_image_np).float() / 127.5 - 1
         input_image_pt = input_image_pt.permute(2, 0, 1)[None, :, None]
+
+        # Process end frame if provided
+        end_frame_latent = None
+        if end_frame is not None:
+            print("Processing end frame...")
+            # Resize the end frame to match input dimensions
+            end_frame_np = resize_and_center_crop(end_frame, target_width=width, target_height=height)
+            
+            # Save processed end frame image
+            Image.fromarray(end_frame_np).save(os.path.join(outputs_folder, f'{job_id}_end.png'))
+            
+            # Convert to PyTorch tensor
+            end_frame_pt = torch.from_numpy(end_frame_np).float() / 127.5 - 1
+            end_frame_pt = end_frame_pt.permute(2, 0, 1)[None, :, None]
 
         # VAE encoding
         stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'VAE encoding ...'))))
@@ -183,9 +197,15 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
         if not models.high_vram:
             load_model_as_complete(models.vae, target_device=gpu)
 
-        # Encode image with VAE
+        # Encode input image with VAE
         vae_start_time = time.time()
         start_latent = vae_encode(input_image_pt, models.vae)
+        
+        # Encode end frame if provided
+        if end_frame is not None:
+            end_frame_latent = vae_encode(end_frame_pt, models.vae)
+            print("End frame encoded successfully")
+            
         vae_time = time.time() - vae_start_time
         print(f"VAE encoding completed in {vae_time:.2f} seconds")
         
@@ -242,10 +262,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
             # Use an improved padding sequence for longer videos
             latent_paddings = [3] + [2] * (total_latent_sections - 3) + [1, 0]
 
-        # Generate video in progressive sections
+        # Generate video in progressive sections        # Generate video in progressive sections
         output_filename = None
-        for latent_padding in latent_paddings:
+        for i_section, latent_padding in enumerate(latent_paddings):
+            is_first_section = i_section == 0
             is_last_section = latent_padding == 0
+            use_end_latent = is_last_section and end_frame is not None
             latent_padding_size = latent_padding * latent_window_size
 
             # Check for user termination
@@ -253,7 +275,12 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                 stream.output_queue.push(('end', None))
                 return output_filename
 
-            print(f'latent_padding_size = {latent_padding_size}, is_last_section = {is_last_section}')
+            print(f'latent_padding_size = {latent_padding_size}, is_last_section = {is_last_section}, is_first_section = {is_first_section}')
+            
+            # If we have an end frame and this is the first section, add it to history latents
+            if is_first_section and end_frame_latent is not None:
+                print("Adding end frame to history latents for first section")
+                history_latents[:, :, 0:1, :, :] = end_frame_latent
 
             # Prepare indices for section generation            # Prepare indices for section generation
             indices = torch.arange(0, sum([1, latent_padding_size, latent_window_size, 1, 2, 16])).unsqueeze(0)

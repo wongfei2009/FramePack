@@ -103,15 +103,17 @@ def create_ui(models, stream):
         )
         # Latent window size is now defined in the Parameters tab
         
-        # Main tab interface        # Main tab interface
+        # Main tab interface
         with gr.Tabs():
             # Tab 1: Input and Output Combined
             with gr.TabItem("Generation", elem_classes="generation-tab"):
                 with gr.Row():
                     # Left column for input
                     with gr.Column(scale=1):
-                        # Input image and prompt
-                        input_image = gr.Image(sources='upload', type="numpy", label="Input Image", height=320)
+                        # Input image, end frame and prompt
+                        with gr.Row():
+                            input_image = gr.Image(sources='upload', type="numpy", label="Input Image", height=320)
+                            end_frame = gr.Image(sources='upload', type="numpy", label="Final Frame (Optional)", height=320)
                         prompt = gr.Textbox(label="Prompt", value='', lines=4)
                         example_quick_prompts = gr.Dataset(
                             samples=quick_prompts, 
@@ -173,7 +175,7 @@ def create_ui(models, stream):
                             progress_bar = gr.HTML('', elem_classes='no-generating-animation')
                         
                         gr.Markdown(
-                            'Note: Ending actions are generated before starting actions due to inverted sampling. If starting action is not visible yet, wait for more frames.',
+                            'Note: Ending actions are generated before starting actions due to inverted sampling. If starting action is not visible yet, wait for more frames. You can optionally specify a final frame to guide the ending of the video.',
                             elem_classes="info-text"
                         )
                 
@@ -234,7 +236,7 @@ def create_ui(models, stream):
                     )                    
         
         # Define process function
-        def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, 
+        def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
                     steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_compile):
             """
             Process the video generation request.
@@ -253,7 +255,7 @@ def create_ui(models, stream):
             # Start the worker in a separate thread
             async_run(
                 worker, 
-                input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, 
+                input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_compile,
                 models, stream
             )
@@ -294,7 +296,7 @@ def create_ui(models, stream):
         start_button.click(
             fn=process,
             inputs=[
-                input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, 
+                input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_compile
             ],
             outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button]
