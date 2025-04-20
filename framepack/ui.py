@@ -220,7 +220,11 @@ def create_ui(models, stream):
                         info="Controls frames per section. For 24 FPS: 7=25 frames (≈1 sec), 9=33 frames (≈1.4 sec), 13=49 frames (≈2 sec). Higher values give better temporal coherence, lower values use less VRAM."
                     )
                     
-
+                    enable_compile = gr.Checkbox(
+                        label='Enable PyTorch Compile', 
+                        value=False, 
+                        info='Enables PyTorch 2.0+ compile optimization. Can improve performance but may cause instability on some systems.'
+                    )
                     
                     mp4_crf = gr.Slider(
                         label="MP4 Compression", 
@@ -231,7 +235,7 @@ def create_ui(models, stream):
         
         # Define process function
         def process(input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-                    steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf):
+                    steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_compile):
             """
             Process the video generation request.
             
@@ -250,7 +254,7 @@ def create_ui(models, stream):
             async_run(
                 worker, 
                 input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, 
+                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_compile,
                 models, stream
             )
 
@@ -291,7 +295,7 @@ def create_ui(models, stream):
             fn=process,
             inputs=[
                 input_image, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf
+                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_compile
             ],
             outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button]
         )

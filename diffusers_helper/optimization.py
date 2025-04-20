@@ -109,14 +109,10 @@ def smart_batch_size(height, width, available_vram_gb):
     else:  # Low VRAM
         return 1
 
-def optimize_for_inference(transformer, high_vram=False):
+def optimize_for_inference(transformer, high_vram=False, enable_compile=False):
     """Apply various optimizations for inference"""
-    # Skip optimizations for low VRAM mode to avoid unexpected behavior
-    if not high_vram:
-        return transformer
-    
-    # Try to apply torch.compile if available (PyTorch 2.0+)
-    if hasattr(torch, 'compile') and torch.__version__ >= '2.0.0':
+    # Apply torch.compile optimization if enabled, regardless of VRAM size
+    if enable_compile and hasattr(torch, 'compile') and torch.__version__ >= '2.0.0':
         try:
             # Only compile the most intensive operations
             if hasattr(transformer, 'model') and hasattr(transformer.model, 'norm'):
@@ -138,39 +134,10 @@ def optimize_for_inference(transformer, high_vram=False):
             if hasattr(transformer, '_original_norm_forward'):
                 transformer.model.norm.forward = transformer._original_norm_forward
     
-    # Set maximum batch sizes for attention operations
-    if hasattr(transformer, 'set_attention_optimization'):
-        transformer.set_attention_optimization(True)
+    # Apply VRAM-dependent optimizations only for high VRAM systems
+    if high_vram:
+        # Set maximum batch sizes for attention operations
+        if hasattr(transformer, 'set_attention_optimization'):
+            transformer.set_attention_optimization(True)
     
     return transformer
-
-def warmup_model(transformer, device, dtype=torch.bfloat16):
-    """Perform a small forward pass to warm up the model"""
-    print("Warming up model with a test forward pass...")
-    try:
-        # Create small dummy inputs for warmup
-        dummy_latents = torch.zeros((1, 16, 4, 32, 32), device=device, dtype=dtype)
-        dummy_timestep = torch.ones((1,), device=device, dtype=torch.float32)
-        
-        # Dummy encoder inputs (needed for the model's forward function)
-        dummy_encoder_hidden_states = torch.zeros((1, 16, 4096), device=device, dtype=dtype)
-        dummy_encoder_attention_mask = torch.ones((1, 16), device=device, dtype=torch.bool)
-        dummy_pooled_projections = torch.zeros((1, 768), device=device, dtype=dtype)
-        dummy_guidance = torch.zeros((1,), device=device, dtype=torch.float32)
-        
-        # Warm up with a single forward pass
-        with torch.no_grad():
-            _ = transformer(
-                hidden_states=dummy_latents, 
-                timestep=dummy_timestep,
-                encoder_hidden_states=dummy_encoder_hidden_states,
-                encoder_attention_mask=dummy_encoder_attention_mask,
-                pooled_projections=dummy_pooled_projections,
-                guidance=dummy_guidance
-            )
-            
-        print("Model warmup completed successfully")
-        return True
-    except Exception as e:
-        print(f"Model warmup failed: {e}")
-        return False

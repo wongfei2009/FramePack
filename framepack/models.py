@@ -24,7 +24,7 @@ from diffusers_helper.memory import (
 )
 from diffusers_helper.optimization import (
     configure_teacache, optimize_for_inference, 
-    aggressive_memory_cleanup, warmup_model
+    aggressive_memory_cleanup
 )
 
 # Define a function to load models locally first or download if not found
@@ -236,7 +236,7 @@ class FramePackModels:
             self.vae.to(gpu)
             self.transformer.to(gpu)
 
-    def prepare_for_inference(self, gpu_memory_preservation, use_teacache, steps, rel_l1_thresh=0.15):
+    def prepare_for_inference(self, gpu_memory_preservation, use_teacache, steps, rel_l1_thresh=0.15, enable_compile=False):
         """
         Prepare models for inference.
         
@@ -245,6 +245,7 @@ class FramePackModels:
             use_teacache: Whether to use TeaCache for acceleration
             steps: Number of inference steps
             rel_l1_thresh: Threshold for TeaCache relative L1 distance (lower = faster but lower quality)
+            enable_compile: Whether to enable torch.compile optimization
         """
         if not self.high_vram:
             # Clean up memory before loading transformer
@@ -287,4 +288,8 @@ class FramePackModels:
             print("TeaCache disabled as per user request")
             
         # Apply additional inference optimizations
-        optimize_for_inference(self.transformer, high_vram=self.high_vram)
+        optimize_for_inference(self.transformer, high_vram=self.high_vram, enable_compile=enable_compile)
+        if enable_compile:
+            print("PyTorch compile optimization enabled")
+        else:
+            print("PyTorch compile optimization disabled")
