@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import torch
 import einops
@@ -15,7 +15,6 @@ from diffusers.models.embeddings import TimestepEmbedding, Timesteps, PixArtAlph
 from diffusers.models.modeling_outputs import Transformer2DModelOutput
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers_helper.dit_common import LayerNorm
-from diffusers_helper.utils import zero_module
 
 
 enabled_backends = []
@@ -29,25 +28,7 @@ if torch.backends.cuda.mem_efficient_sdp_enabled():
 if torch.backends.cuda.cudnn_sdp_enabled():
     enabled_backends.append("cudnn")
 
-# Silently get backend info without printing
-# print("Currently enabled native sdp backends:", enabled_backends)
-
-try:
-    # raise NotImplementedError
-    from xformers.ops import memory_efficient_attention as xformers_attn_func
-    # print('Xformers is installed!')
-except:
-    # print('Xformers is not installed!')
-    xformers_attn_func = None
-
-try:
-    # raise NotImplementedError
-    from flash_attn import flash_attn_varlen_func, flash_attn_func
-    # print('Flash Attn is installed!')
-except:
-    # print('Flash Attn is not installed!')
-    flash_attn_varlen_func = None
-    flash_attn_func = None
+print("Currently enabled native sdp backends:", enabled_backends)
 
 try:
     # raise NotImplementedError
@@ -59,7 +40,6 @@ except:
     sageattn = None
 
 
-logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
 def pad_for_3d_conv(x, kernel_size):
@@ -125,9 +105,6 @@ def attn_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_seqlen_q, max_seq
     # Prioritize Sage Attention for variable length
     if sageattn_varlen is not None:
         x = sageattn_varlen(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_seqlen_q, max_seqlen_kv)
-    # Fall back to Flash Attention if needed (since we need variable length support)
-    elif flash_attn_varlen_func is not None:
-        x = flash_attn_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_seqlen_q, max_seqlen_kv)
     else:
         raise NotImplementedError('No Attn Installed!')
         
@@ -699,7 +676,6 @@ class HunyuanVideoPatchEmbedForCleanLatents(nn.Module):
         self.proj_2x = nn.Conv3d(16, inner_dim, kernel_size=(2, 4, 4), stride=(2, 4, 4))
         self.proj_4x = nn.Conv3d(16, inner_dim, kernel_size=(4, 8, 8), stride=(4, 8, 8))
 
-    @torch.no_grad()
     def initialize_weight_from_another_conv3d(self, another_layer):
         weight = another_layer.weight.detach().clone()
         bias = another_layer.bias.detach().clone()
@@ -806,15 +782,7 @@ class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterM
         self.clean_x_embedder = HunyuanVideoPatchEmbedForCleanLatents(self.inner_dim)
         self.config['has_clean_x_embedder'] = True
 
-    def enable_gradient_checkpointing(self):
-        self.use_gradient_checkpointing = True
-        print('self.use_gradient_checkpointing = True')
-
-    def disable_gradient_checkpointing(self):
-        self.use_gradient_checkpointing = False
-        print('self.use_gradient_checkpointing = False')
-
-    def initialize_teacache(self, enable_teacache=True, num_steps=25, rel_l1_thresh=0.15, cache_size_multiplier=None):
+    def initialize_teacache(self, enable_teacache=True, num_steps=25, rel_l1_thresh=0.15, _=None):
         """Initialize TeaCache with enhanced configuration options
         
         Args:
@@ -924,7 +892,17 @@ class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterM
         if attention_kwargs is None:
             attention_kwargs = {}
 
-        batch_size, num_channels, num_frames, height, width = hidden_states.shape
+        # Get shape information from hidden_states
+        shape = hidden_states.shape
+        
+        # Handle different possible input shapes
+        if len(shape) == 4:
+            batch_size, num_frames, height, width = shape
+        elif len(shape) == 5:
+            batch_size, channels, num_frames, height, width = shape
+        else:
+            raise ValueError(f"Unexpected hidden_states shape: {shape}. Expected 4D (B,F,H,W) or 5D (B,C,F,H,W) tensor.")
+        
         p, p_t = self.config['patch_size'], self.config['patch_size_t']
         post_patch_num_frames = num_frames // p_t
         post_patch_height = height // p
@@ -1020,7 +998,7 @@ class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterM
                 # Need to recalculate - full computation path
                 ori_hidden_states = hidden_states.clone()
 
-                for block_id, block in enumerate(self.transformer_blocks):
+                for block in self.transformer_blocks:
                     hidden_states, encoder_hidden_states = self.gradient_checkpointing_method(
                         block,
                         hidden_states,
@@ -1030,7 +1008,7 @@ class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterM
                         rope_freqs
                     )
 
-                for block_id, block in enumerate(self.single_transformer_blocks):
+                for block in self.single_transformer_blocks:
                     hidden_states, encoder_hidden_states = self.gradient_checkpointing_method(
                         block,
                         hidden_states,
@@ -1043,7 +1021,7 @@ class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterM
                 # Cache the residual for future steps
                 self.previous_residual = hidden_states - ori_hidden_states
         else:
-            for block_id, block in enumerate(self.transformer_blocks):
+            for block in self.transformer_blocks:
                 hidden_states, encoder_hidden_states = self.gradient_checkpointing_method(
                     block,
                     hidden_states,
@@ -1053,7 +1031,7 @@ class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterM
                     rope_freqs
                 )
 
-            for block_id, block in enumerate(self.single_transformer_blocks):
+            for block in self.single_transformer_blocks:
                 hidden_states, encoder_hidden_states = self.gradient_checkpointing_method(
                     block,
                     hidden_states,

@@ -3,7 +3,7 @@ UI module for FramePack.
 """
 
 import gradio as gr
-from diffusers_helper.thread_utils import AsyncStream, async_run
+from diffusers_helper.thread_utils import async_run
 from diffusers_helper.gradio.progress_bar import make_progress_bar_css, make_progress_bar_html
 
 from framepack.worker import worker
@@ -103,8 +103,8 @@ def create_ui(models, stream):
         )
         # Latent window size is now defined in the Parameters tab
         
-        # Main tab interface
-        with gr.Tabs() as tabs:
+        # Main tab interface        # Main tab interface
+        with gr.Tabs():
             # Tab 1: Input and Output Combined
             with gr.TabItem("Generation", elem_classes="generation-tab"):
                 with gr.Row():

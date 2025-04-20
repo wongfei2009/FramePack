@@ -1,6 +1,5 @@
 import torch
 import gc
-import time
 
 def aggressive_memory_cleanup():
     """More aggressive memory cleanup between processing steps"""
@@ -56,10 +55,6 @@ def configure_teacache(transformer, vram_gb, steps=25, rel_l1_thresh=None):
         elif transformer.dtype == torch.float16:
             precision = 'float16'
     
-    # Calculate optimal threshold based on step count
-    # Fewer steps benefit from more aggressive caching (lower threshold)
-    step_factor = max(0.5, min(1.0, steps / 30))
-    
     # Adjust cache_size_multiplier if supported
     if hasattr(transformer, 'initialize_teacache') and 'cache_size_multiplier' in transformer.initialize_teacache.__code__.co_varnames:
         # Calculate optimal cache size based on VRAM and precision
@@ -73,8 +68,6 @@ def configure_teacache(transformer, vram_gb, steps=25, rel_l1_thresh=None):
             
         teacache_params['cache_size_multiplier'] = cache_multiplier
         print(f"Setting TeaCache size multiplier to {cache_multiplier:.2f}")
-    
-    # Dynamically adjust rel_l1_thresh based on multiple factors
     if hasattr(transformer, 'rel_l1_thresh') or (hasattr(transformer, 'initialize_teacache') and 'rel_l1_thresh' in transformer.initialize_teacache.__code__.co_varnames):
         # Always use the provided threshold from UI
         final_thresh = float(rel_l1_thresh)
@@ -89,25 +82,6 @@ def configure_teacache(transformer, vram_gb, steps=25, rel_l1_thresh=None):
     transformer.initialize_teacache(**teacache_params)
     
     return transformer
-
-def smart_batch_size(height, width, available_vram_gb):
-    """Calculate optimal batch size based on image dimensions and available VRAM"""
-    # Rough estimation based on typical memory usage patterns
-    pixels = height * width
-    if pixels > 1024*1024:  # 1M+ pixels (higher than HD)
-        base_multiplier = 0.5
-    elif pixels > 512*512:  # HD-range
-        base_multiplier = 0.75
-    else:  # SD or lower
-        base_multiplier = 1.0
-        
-    # Calculate based on VRAM
-    if available_vram_gb > 20:  # High-end cards
-        return min(4, max(1, int(available_vram_gb * 0.15 * base_multiplier)))
-    elif available_vram_gb > 10:  # Mid-range cards
-        return min(2, max(1, int(available_vram_gb * 0.1 * base_multiplier)))
-    else:  # Low VRAM
-        return 1
 
 def optimize_for_inference(transformer, high_vram=False, enable_compile=False):
     """Apply various optimizations for inference"""

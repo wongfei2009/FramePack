@@ -10,13 +10,10 @@ import einops
 import numpy as np
 from PIL import Image
 
-from diffusers_helper.thread_utils import AsyncStream
 from diffusers_helper.pipelines.k_diffusion_hunyuan import sample_hunyuan
 from diffusers_helper.memory import (
-    cpu, gpu, get_cuda_free_memory_gb, 
-    move_model_to_device_with_memory_preservation, 
-    offload_model_from_device_for_memory_preservation, 
-    unload_complete_models,
+    cpu, gpu, offload_model_from_device_for_memory_preservation, 
+    unload_complete_models, 
     load_model_as_complete
 )
 from diffusers_helper.hunyuan import (
@@ -258,9 +255,9 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
 
             print(f'latent_padding_size = {latent_padding_size}, is_last_section = {is_last_section}')
 
-            # Prepare indices for section generation
+            # Prepare indices for section generation            # Prepare indices for section generation
             indices = torch.arange(0, sum([1, latent_padding_size, latent_window_size, 1, 2, 16])).unsqueeze(0)
-            clean_latent_indices_pre, blank_indices, latent_indices, clean_latent_indices_post, clean_latent_2x_indices, clean_latent_4x_indices = indices.split([1, latent_padding_size, latent_window_size, 1, 2, 16], dim=1)
+            clean_latent_indices_pre, _, latent_indices, clean_latent_indices_post, clean_latent_2x_indices, clean_latent_4x_indices = indices.split([1, latent_padding_size, latent_window_size, 1, 2, 16], dim=1)
             clean_latent_indices = torch.cat([clean_latent_indices_pre, clean_latent_indices_post], dim=1)
 
             # Prepare clean latents
@@ -509,7 +506,7 @@ def worker(input_image, prompt, n_prompt, seed, total_second_length, latent_wind
                     performance_tracker.end_timer("sampling")
                 break
                 
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
 
         if not models.high_vram:

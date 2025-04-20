@@ -50,7 +50,7 @@ def setup_sage_attention():
         sageattn.is_available = lambda: False
         sageattn_varlen.is_available = lambda: False
         has_sage_attn = False
-        print("Sage Attention not imported - install with 'pip install sageattention==1.0.6'")
+        print("Sage Attention not imported!")
     
     return sageattn, sageattn_varlen, has_sage_attn
 

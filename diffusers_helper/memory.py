@@ -50,7 +50,6 @@ class DynamicSwapInstaller:
             DynamicSwapInstaller._install_module(m, **kwargs)
         return
 
-    @staticmethod
     def uninstall_model(model: torch.nn.Module):
         for m in model.modules():
             DynamicSwapInstaller._uninstall_module(m)

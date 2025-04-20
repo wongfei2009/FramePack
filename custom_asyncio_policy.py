@@ -5,7 +5,6 @@ from functools import wraps
 
 # Only needed on Windows
 if sys.platform.startswith("win"):
-    from asyncio.windows_events import WindowsProactorEventLoopPolicy
     import asyncio.proactor_events
     
     # Get the actual class that we need to patch

@@ -2,8 +2,6 @@
 Main application entry point for FramePack.
 """
 
-import os
-import sys
 import argparse
 from custom_asyncio_policy import apply_asyncio_fixes
 
@@ -11,7 +9,6 @@ from custom_asyncio_policy import apply_asyncio_fixes
 apply_asyncio_fixes()
 
 # Import from diffusers_helper
-from diffusers_helper.hf_login import login
 from diffusers_helper.thread_utils import AsyncStream
 
 # Import from framepack package
@@ -39,7 +36,7 @@ def main():
     sageattn, sageattn_varlen, has_sage_attn = setup_sage_attention()
     
     # Create outputs directory
-    outputs_folder = prepare_outputs_directory()
+    prepare_outputs_directory()
     
     # Load models
     models = FramePackModels()
