@@ -2,11 +2,16 @@
 UI module for FramePack.
 """
 
+import logging
 import gradio as gr
 from diffusers_helper.thread_utils import async_run
 from diffusers_helper.gradio.progress_bar import make_progress_bar_css, make_progress_bar_html
 
 from framepack.worker import worker
+from framepack.config.parameter_config import param_config
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 def create_ui(models, stream):
     """
@@ -19,6 +24,10 @@ def create_ui(models, stream):
     Returns:
         Gradio Blocks instance
     """
+    # Make sure parameters are loaded
+    from framepack.config.parameter_config import param_config
+    logger.info("Loading saved parameters for UI...")
+    
     # Define sample prompts
     quick_prompts = [
         'The girl dances gracefully, with clear movements, full of charm.',
@@ -80,6 +89,121 @@ def create_ui(models, stream):
         box-shadow: 0 2px 3px rgba(0,0,0,0.1) !important;
         transform: translateY(-1px) !important;
     }
+    .reset-button {
+        margin: 10px 0 15px 0 !important;
+        background-color: #f8f9fa !important;
+        border: 1px solid #ddd !important;
+        color: #555 !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    /* Two-column layout styling */
+    .params-tab .gr-form {
+        display: flex;
+        flex-wrap: wrap;
+    }
+    
+    .params-tab .gr-form > .gr-block {
+        flex: 1 1 45%;
+        margin-right: 15px;
+    }
+    .reset-button:hover {
+        background-color: #e9ecef !important;
+        border-color: #ced4da !important;
+        color: #212529 !important;
+    }
+    .save-status {
+        margin: 5px 0 15px 0 !important;
+        padding: 5px 10px !important;
+        color: #198754 !important;
+        font-weight: 500 !important;
+        line-height: 1.5 !important;
+        text-align: right !important;
+        font-size: 0.9em !important;
+        opacity: 0.9 !important;
+        transition: opacity 0.3s ease !important;
+    }
+    .settings-buttons-container {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        padding: 20px 0 10px 0 !important;
+        margin-top: 20px !important;
+        border-top: 1px solid #e9ecef !important;
+    }
+    
+    .settings-button {
+        margin: 0 10px !important;
+        min-width: 150px !important;
+        font-weight: 500 !important;
+        padding: 10px 20px !important;
+        font-size: 0.95em !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    .save-button {
+        background-color: #0d6efd !important;
+        border-color: #0d6efd !important;
+        color: white !important;
+    }
+    
+    .save-button:hover {
+        background-color: #0b5ed7 !important;
+        border-color: #0a58ca !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
+    }
+    
+    .reset-button {
+        background-color: #f8f9fa !important;
+        border: 1px solid #ced4da !important;
+        border-radius: 4px !important;
+        color: #495057 !important;
+    }
+    
+    .reset-button:hover {
+        background-color: #e9ecef !important;
+        border-color: #adb5bd !important;
+        color: #212529 !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+    }
+    .params-section-title {
+        font-size: 0.85em !important;
+        color: #6c757d !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+        font-weight: 600 !important;
+        margin: 15px 0 10px 0 !important;
+        padding-bottom: 5px !important;
+        border-bottom: none !important; /* Remove the border that's causing double lines */
+    }
+    
+    /* Target the Markdown headings specifically to ensure they don't have bottom borders */
+    .params-section-title h4 {
+        border-bottom: none !important;
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
+    }
+    /* Hide the individual reset buttons for each parameter */
+    button[aria-label="Reset to default"],
+    .gradio-slider button,
+    .gradio-checkbox button,
+    .gradio-radio button,
+    .gradio-textbox button,
+    .gradio-number button,
+    button.gr-button.gr-button-lg,
+    .gr-form button[class*="reset"],
+    .refresh-button,
+    .reset-value {
+        display: none !important;
+    }
+    
+    /* Additional selectors to catch all variations */
+    [id*="reset"],
+    [class*="reset-button"]:not(.reset-button),
+    [data-testid*="reset"] {
+        display: none !important;
+    }
     """
     
     block = gr.Blocks(css=css).queue()
@@ -87,18 +211,21 @@ def create_ui(models, stream):
     with block:
         gr.Markdown('# FramePack')
         
+        # Get saved parameters
+        params = param_config.get_all_parameters()
+        
         # Hidden parameters (not shown in UI but needed for function calls)
-        n_prompt = gr.Textbox(label="Negative Prompt", value="", visible=False)
+        n_prompt = gr.Textbox(label="Negative Prompt", value=params.get("n_prompt", ""), visible=False)
         cfg = gr.Slider(
             label="CFG Scale", 
             minimum=1.0, maximum=32.0, 
-            value=1.0, step=0.01, 
+            value=params.get("cfg", 1.0), step=0.01, 
             visible=False
         )
         rs = gr.Slider(
             label="CFG Re-Scale", 
             minimum=0.0, maximum=1.0, 
-            value=0.0, step=0.01, 
+            value=params.get("rs", 0.0), step=0.01, 
             visible=False
         )
         # Latent window size is now defined in the Parameters tab
@@ -114,7 +241,7 @@ def create_ui(models, stream):
                         with gr.Row():
                             input_image = gr.Image(sources='upload', type="numpy", label="Input Image", height=320)
                             end_frame = gr.Image(sources='upload', type="numpy", label="Final Frame (Optional)", height=320)
-                        prompt = gr.Textbox(label="Prompt", value='', lines=4)
+                        prompt = gr.Textbox(label="Prompt", value=params.get("prompt", ''), lines=4)
                         example_quick_prompts = gr.Dataset(
                             samples=quick_prompts, 
                             label='Quick List', 
@@ -132,21 +259,21 @@ def create_ui(models, stream):
                         # Basic parameters everyone needs
                         with gr.Row(equal_height=True):
                             with gr.Column(scale=1, elem_classes="seed-group"):
-                                seed = gr.Number(label="Seed", value=31337, precision=0)
+                                seed = gr.Number(label="Seed", value=params.get("seed", 31337), precision=0)
                                 random_seed_btn = gr.Button("🎲 Random Seed", variant="secondary", size="sm", elem_classes="seed-button")
                             
                             with gr.Column(scale=1):
                                 total_second_length = gr.Slider(
                                     label="Video Length (Seconds)", 
                                     minimum=1, maximum=120, 
-                                    value=5, step=0.1
+                                    value=params.get("total_second_length", 5), step=0.1
                                 )
                         
                         # Resolution scale selection
                         resolution_scale = gr.Radio(
                             label="Resolution Scale",
                             choices=["Full (1x)", "Half (0.5x)"],
-                            value="Full (1x)",
+                            value=params.get("resolution_scale", "Full (1x)"),
                             info="Half resolution provides much faster generation for previews."
                         )
                         
@@ -179,61 +306,103 @@ def create_ui(models, stream):
                             elem_classes="info-text"
                         )
                 
-            # Tab 2: Parameters
-            with gr.TabItem("Parameters", elem_classes="params-tab"):
+            # Tab 2: Settings
+            with gr.TabItem("Settings", elem_classes="params-tab"):
                 with gr.Column(elem_classes="compact-slider"):
-                    # Add TeaCache at the top of parameters
-                    use_teacache = gr.Checkbox(
-                        label='Use TeaCache', 
-                        value=True, 
-                        info='Accelerates generation by reusing computation across steps. Faster speed, but may slightly affect quality of fine details like hands and fingers.'
-                    )
+                    # Remove the reset container and status message
                     
-                    teacache_thresh = gr.Slider(
-                        label="TeaCache Threshold", 
-                        minimum=0.08, maximum=0.25, 
-                        value=0.15, step=0.01, 
-                        info='Controls cache reuse frequency. Higher values = faster generation but potential quality loss. Lower values = slower but higher quality.'
-                    )
+                    # Two-column layout for settings
+                    with gr.Row():
+                        # Left column
+                        with gr.Column():
+                            # Performance settings in left column - use a span instead of markdown heading
+                            gr.HTML("<div class='params-section-title'>PERFORMANCE</div>")
+                            
+                            # TeaCache parameters
+                            use_teacache = gr.Checkbox(
+                                label='Use TeaCache', 
+                                value=params.get("use_teacache", True), 
+                                info='Accelerates generation by reusing computation across steps. Faster speed, but may slightly affect quality of fine details like hands and fingers.'
+                            )
+                            
+                            teacache_thresh = gr.Slider(
+                                label="TeaCache Threshold", 
+                                minimum=0.08, maximum=0.25, 
+                                value=params.get("teacache_thresh", 0.15), step=0.01, 
+                                info='Controls cache reuse frequency. Higher values = faster generation but potential quality loss. Lower values = slower but higher quality.'
+                            )
+                            
+                            enable_compile = gr.Checkbox(
+                                label='Enable PyTorch Compile', 
+                                value=params.get("enable_compile", False), 
+                                info='Enables PyTorch 2.0+ compile optimization. Can improve performance but may cause instability on some systems.'
+                            )
+                            
+                            gpu_memory_preservation = gr.Slider(
+                                label="GPU Inference Preserved Memory (GB)", 
+                                minimum=4, maximum=128, 
+                                value=params.get("gpu_memory_preservation", 6), step=0.1, 
+                                info="Set this number to a larger value if you encounter OOM. Larger value causes slower speed."
+                            )
+                            
+                            # Output settings in left column - use HTML instead of Markdown
+                            gr.HTML("<div class='params-section-title'>OUTPUT</div>")
+                            
+                            mp4_crf = gr.Slider(
+                                label="MP4 Compression", 
+                                minimum=0, maximum=100, 
+                                value=params.get("mp4_crf", 16), step=1, 
+                                info="Lower means better quality. 0 is uncompressed. Change to 16 if you get black outputs."
+                            )
+                        
+                        # Right column
+                        with gr.Column():
+                            # Generation quality settings in right column - use HTML instead of Markdown
+                            gr.HTML("<div class='params-section-title'>GENERATION QUALITY</div>")
+                            
+                            # Generation parameters
+                            steps = gr.Slider(
+                                label="Steps", 
+                                minimum=1, maximum=100, 
+                                value=params.get("steps", 25), step=1, 
+                                info='Changing this value is not recommended.'
+                            )
+                            
+                            gs = gr.Slider(
+                                label="Distilled CFG Scale", 
+                                minimum=1.0, maximum=32.0, 
+                                value=params.get("gs", 10.0), step=0.01, 
+                                info='Changing this value is not recommended.'
+                            )
+                            
+                            latent_window_size = gr.Slider(
+                                label="Latent Window Size", 
+                                minimum=1, maximum=33, 
+                                value=params.get("latent_window_size", 9), step=1, 
+                                info="Controls frames per section. For 24 FPS: 7=25 frames (≈1 sec), 9=33 frames (≈1.4 sec), 13=49 frames (≈2 sec). Higher values give better temporal coherence, lower values use less VRAM."
+                            )
                     
-                    # All other parameters directly visible
-                    steps = gr.Slider(
-                        label="Steps", 
-                        minimum=1, maximum=100, 
-                        value=25, step=1, 
-                        info='Changing this value is not recommended.'
-                    )
-                    gs = gr.Slider(
-                        label="Distilled CFG Scale", 
-                        minimum=1.0, maximum=32.0, 
-                        value=10.0, step=0.01, 
-                        info='Changing this value is not recommended.'
-                    )
-                    gpu_memory_preservation = gr.Slider(
-                        label="GPU Inference Preserved Memory (GB)", 
-                        minimum=4, maximum=128, 
-                        value=6, step=0.1, 
-                        info="Set this number to a larger value if you encounter OOM. Larger value causes slower speed."
-                    )
-                    latent_window_size = gr.Slider(
-                        label="Latent Window Size", 
-                        minimum=1, maximum=33, 
-                        value=9, step=1, 
-                        info="Controls frames per section. For 24 FPS: 7=25 frames (≈1 sec), 9=33 frames (≈1.4 sec), 13=49 frames (≈2 sec). Higher values give better temporal coherence, lower values use less VRAM."
-                    )
+                    # Add buttons at the bottom
+                    with gr.Row(elem_classes="settings-buttons-container"):
+                        with gr.Column():
+                            # Container for buttons
+                            with gr.Row():
+                                # Save button on the left
+                                save_button = gr.Button(
+                                    value="💾 Save Settings", 
+                                    variant="primary",
+                                    elem_classes="settings-button save-button"
+                                )
+                                
+                                # Reset button on the right
+                                reset_button = gr.Button(
+                                    value="↺ Reset to Defaults", 
+                                    variant="secondary",
+                                    elem_classes="settings-button reset-button"
+                                )
                     
-                    enable_compile = gr.Checkbox(
-                        label='Enable PyTorch Compile', 
-                        value=False, 
-                        info='Enables PyTorch 2.0+ compile optimization. Can improve performance but may cause instability on some systems.'
-                    )
-                    
-                    mp4_crf = gr.Slider(
-                        label="MP4 Compression", 
-                        minimum=0, maximum=100, 
-                        value=16, step=1, 
-                        info="Lower means better quality. 0 is uncompressed. Change to 16 if you get black outputs."
-                    )                    
+                    # Hidden status for saving
+                    save_status = gr.Markdown("", visible=False)                    
         
         # Define process function
         def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
@@ -304,7 +473,13 @@ def create_ui(models, stream):
         
         end_button.click(fn=end_process)
         
-        # Connect random seed button
+        # Utility functions for parameter management
+        # Define clear_status function first so it's available for all events
+        def clear_status():
+            """Clear the status message after a delay."""
+            return ""
+            
+        # Function to generate a random seed
         def generate_random_seed():
             """Generate a random seed value."""
             import random
@@ -312,8 +487,162 @@ def create_ui(models, stream):
             
             # Use current time as part of the seed to ensure uniqueness
             random.seed(time.time())
-            return int(random.randint(0, 2147483647))
+            random_seed_val = int(random.randint(0, 2147483647))
+            
+            # Save the generated seed
+            param_config.update_parameter("seed", random_seed_val)
+            
+            return random_seed_val
         
+        # Function to save all parameters at once
+        def save_all_parameters(seed_val, total_second_val, resolution_scale_val, 
+                               use_teacache_val, teacache_thresh_val, steps_val, gs_val,
+                               gpu_memory_val, latent_window_val, enable_compile_val, mp4_crf_val,
+                               prompt_val, n_prompt_val, cfg_val, rs_val):
+            """Save all current parameter values."""
+            params_to_save = {
+                "seed": seed_val,
+                "total_second_length": total_second_val,
+                "resolution_scale": resolution_scale_val,
+                "use_teacache": use_teacache_val,
+                "teacache_thresh": teacache_thresh_val,
+                "steps": steps_val,
+                "gs": gs_val,
+                "gpu_memory_preservation": gpu_memory_val,
+                "latent_window_size": latent_window_val,
+                "enable_compile": enable_compile_val,
+                "mp4_crf": mp4_crf_val,
+                "prompt": prompt_val,
+                "n_prompt": n_prompt_val,
+                "cfg": cfg_val,
+                "rs": rs_val
+            }
+            
+            # Log the parameters we're saving
+            logger.info(f"Saving parameters: {params_to_save}")
+            
+            # Update the parameters in the config
+            param_config.update_parameters(params_to_save)
+            
+            # Log after saving
+            logger.info("Parameters saved successfully")
+            
+            return gr.update(value="✓ Settings saved successfully", visible=True)
+        
+        # Function to reset all parameters to defaults
+        def reset_with_message():
+            """Reset parameters and show confirmation message."""
+            defaults = param_config.reset_parameters()
+            
+            # Return values for UI components with status message
+            return {
+                seed: defaults["seed"],
+                total_second_length: defaults["total_second_length"],
+                resolution_scale: defaults["resolution_scale"],
+                use_teacache: defaults["use_teacache"],
+                teacache_thresh: defaults["teacache_thresh"],
+                steps: defaults["steps"],
+                gs: defaults["gs"],
+                gpu_memory_preservation: defaults["gpu_memory_preservation"],
+                latent_window_size: defaults["latent_window_size"],
+                enable_compile: defaults["enable_compile"],
+                mp4_crf: defaults["mp4_crf"],
+                prompt: defaults["prompt"],
+                n_prompt: defaults["n_prompt"],
+                cfg: defaults["cfg"],
+                rs: defaults["rs"],
+                save_status: gr.update(value="✓ Parameters restored to default values", visible=True)
+            }
+            
+        # Connect random seed button
+        random_seed_btn.click(
+            fn=generate_random_seed,
+            inputs=[],
+            outputs=[seed],
+            show_progress=False
+        )
+        
+        # Connect reset button
+        reset_button.click(
+            fn=reset_with_message,
+            inputs=[],
+            outputs=[
+                seed, total_second_length, resolution_scale,
+                use_teacache, teacache_thresh, steps, gs,
+                gpu_memory_preservation, latent_window_size,
+                enable_compile, mp4_crf, prompt, n_prompt,
+                cfg, rs, save_status
+            ],
+            show_progress=False
+        )
+        
+        # Add a separate event to clear the status after reset
+        # This uses a simpler approach that doesn't rely on .then()
+        def delayed_clear():
+            import time
+            time.sleep(3)  # Wait 3 seconds
+            return ""
+            
+        reset_button.click(
+            fn=delayed_clear,
+            inputs=[],
+            outputs=[save_status],
+            show_progress=False,
+            queue=False  # Run in parallel
+        )
+        
+        # Function to clear status message after delay
+        def clear_status_after_delay():
+            """Clear the save status message after a delay."""
+            import time
+            time.sleep(3)  # Wait for 3 seconds
+            return gr.update(visible=False)
+        
+        # Connect Save button with all the parameter inputs
+        save_button.click(
+            fn=save_all_parameters,
+            inputs=[
+                seed, total_second_length, resolution_scale,
+                use_teacache, teacache_thresh, steps, gs,
+                gpu_memory_preservation, latent_window_size,
+                enable_compile, mp4_crf, prompt, n_prompt,
+                cfg, rs
+            ],
+            outputs=[save_status]
+        )
+        
+        # Add auto-hide for save status
+        save_button.click(
+            fn=clear_status_after_delay,
+            inputs=[],
+            outputs=[save_status],
+            queue=False,  # Run in parallel
+            show_progress=False
+        )
+        
+        # Connect reset button with the same behavior as before
+        reset_button.click(
+            fn=reset_with_message,
+            inputs=[],
+            outputs=[
+                seed, total_second_length, resolution_scale,
+                use_teacache, teacache_thresh, steps, gs,
+                gpu_memory_preservation, latent_window_size,
+                enable_compile, mp4_crf, prompt, n_prompt,
+                cfg, rs, save_status
+            ]
+        )
+        
+        # Add auto-hide for reset status
+        reset_button.click(
+            fn=clear_status_after_delay,
+            inputs=[],
+            outputs=[save_status],
+            queue=False,  # Run in parallel
+            show_progress=False
+        )
+        
+        # Connect random seed button
         random_seed_btn.click(
             fn=generate_random_seed,
             inputs=[],

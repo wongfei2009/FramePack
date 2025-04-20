@@ -45,7 +45,7 @@ def main():
     # Create a global stream for communication
     stream = AsyncStream()
     
-    # Create UI
+    # Create UI with config
     block = create_ui(models, stream)
     
     # Launch the application
