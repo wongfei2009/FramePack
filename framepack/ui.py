@@ -224,8 +224,6 @@ def create_ui(models, stream):
         # Latent window size is now defined in the Parameters tab
         
         # Main tab interface
-                # Hidden state for latest video path
-        latest_video_path = gr.Textbox(label="Latest Video Path", visible=False)
         
         with gr.Tabs():
             # Tab 1: Input and Output Combined
@@ -304,125 +302,7 @@ def create_ui(models, stream):
                             elem_classes="info-text"
                         )
                         
-                        # Add the JavaScript video poller
-                        video_poller_js = """
-<script>
-function setupVideoPoller() {
-    let lastVideoUrl = '';
-    let videoElement = null;
-    
-    // Find the video element in the UI
-    function findVideoElement() {
-        const labelElements = Array.from(document.querySelectorAll('.label-wrap'));
-        const videoLabel = labelElements.find(el => el.textContent.includes('Generated Video'));
-        
-        if (videoLabel) {
-            const videoContainer = videoLabel.closest('.gradio-video');
-            if (videoContainer) {
-                return videoContainer.querySelector('video');
-            }
-        }
-        return null;
-    }
-    
-    // Check for video updates
-    function checkForVideoUpdates() {
-        // Find video element if not already found
-        if (!videoElement) {
-            videoElement = findVideoElement();
-            if (!videoElement) return;
-        }
-        
-        // Get current src
-        const currentUrl = videoElement.getAttribute('src');
-        
-        // If URL has changed and isn't empty
-        if (currentUrl && currentUrl !== lastVideoUrl) {
-            console.log('Video source updated:', currentUrl);
-            lastVideoUrl = currentUrl;
-            
-            // Force reload the video
-            videoElement.load();
-            
-            // Try to play (may be blocked by browser autoplay policies)
-            const playPromise = videoElement.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(e => {
-                    console.log('Auto-play prevented by browser:', e);
-                });
-            }
-        }
-        
-        // Poll the server-side endpoint for latest video path
-        checkLatestVideoPath();
-    }
-    
-    // Poll the server for the latest video path
-    async function checkLatestVideoPath() {
-        try {
-            // Use the hidden latest_video_path component's API endpoint
-            const response = await fetch(`${window.location.pathname}get_latest_video_path`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({}),
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data && data.data) {
-                    const latestPath = data.data;
-                    
-                    // If we have a video element and the path is different
-                    if (videoElement && latestPath && latestPath !== lastVideoUrl && latestPath.trim() !== '') {
-                        console.log('New video detected from server poll:', latestPath);
-                        
-                        // Update the video source directly
-                        videoElement.src = latestPath;
-                        lastVideoUrl = latestPath;
-                        
-                        // Force reload and play
-                        videoElement.load();
-                        const playPromise = videoElement.play();
-                        if (playPromise !== undefined) {
-                            playPromise.catch(e => {
-                                console.log('Auto-play prevented by browser:', e);
-                            });
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.log('Error polling for latest video:', error);
-        }
-    }
-    
-    // Start polling (every 1 second)
-    const pollerId = setInterval(checkForVideoUpdates, 1000);
-    
-    // Increase polling frequency when tab gains focus
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
-            // Tab is visible, check immediately
-            checkForVideoUpdates();
-        }
-    });
-    
-    console.log('Video poller has been initialized');
-    return pollerId;
-}
-
-// Initialize the poller when the page loads
-window.addEventListener('load', () => {
-    // Wait a moment for the UI to fully initialize
-    setTimeout(() => {
-        setupVideoPoller();
-    }, 2000);
-});
-</script>
-"""
-                        gr.HTML(video_poller_js)
+                        # Video poller removed - relying only on async stream signaling
                 
             # Tab 2: Settings
             with gr.TabItem("Settings", elem_classes="params-tab"):
@@ -544,7 +424,7 @@ window.addEventListener('load', () => {
             assert input_image is not None, 'No input image!'
 
             # Initial UI state - disable start button, enable end button
-            yield None, None, '', '', gr.update(interactive=False), gr.update(interactive=True), ""
+            yield None, None, '', '', gr.update(interactive=False), gr.update(interactive=True)
 
             # Start the worker in a separate thread
             async_run(
@@ -562,11 +442,11 @@ window.addEventListener('load', () => {
 
                 if flag == 'file':
                     output_filename = data
-                    yield output_filename, gr.update(), gr.update(), gr.update(), gr.update(interactive=False), gr.update(interactive=True), output_filename
+                    yield output_filename, gr.update(), gr.update(), gr.update(), gr.update(interactive=False), gr.update(interactive=True)
 
                 if flag == 'progress':
                     preview, desc, html = data
-                    yield gr.update(), gr.update(visible=True, value=preview), desc, html, gr.update(interactive=False), gr.update(interactive=True), latest_video_path.value
+                    yield gr.update(), gr.update(visible=True, value=preview), desc, html, gr.update(interactive=False), gr.update(interactive=True)
 
                 if flag == 'end':
                     # Check if we received frame stats
@@ -578,7 +458,7 @@ window.addEventListener('load', () => {
                     
                     # Pass completion message to UI with completed progress bar
                     completed_progress_bar = make_progress_bar_html(100, "Generation completed!")
-                    yield output_filename, gr.update(visible=False), completion_desc, completed_progress_bar, gr.update(interactive=True), gr.update(interactive=False), output_filename
+                    yield output_filename, gr.update(visible=False), completion_desc, completed_progress_bar, gr.update(interactive=True), gr.update(interactive=False)
                     break
         
         # Define end process function
@@ -587,29 +467,19 @@ window.addEventListener('load', () => {
             stream.input_queue.push('end')
             
         # Connect callbacks
-        # Function to get latest video path for API
-        def get_latest_video_path():
-            """API endpoint function to get the latest video path."""
-            return latest_video_path.value
-            
+
         start_button.click(
             fn=process,
             inputs=[
                 input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_compile
             ],
-            outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button, latest_video_path]
+            outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button]
         )
         
         end_button.click(fn=end_process)
         
-        # Create API endpoint for polling the latest video path
-        block.load(
-            fn=get_latest_video_path,
-            inputs=[],
-            outputs=[latest_video_path],
-            api_name="get_latest_video_path"
-        )
+
         
         # Utility functions for parameter management
         # Define clear_status function first so it's available for all events
