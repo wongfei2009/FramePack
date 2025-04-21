@@ -215,12 +215,6 @@ def create_ui(models, stream):
         params = param_config.get_all_parameters()
         
         # Hidden parameters (not shown in UI but needed for function calls)
-        cfg = gr.Slider(
-            label="CFG Scale", 
-            minimum=1.0, maximum=32.0, 
-            value=params.get("cfg", 1.0), step=0.01, 
-            visible=False
-        )
         rs = gr.Slider(
             label="CFG Re-Scale", 
             minimum=0.0, maximum=1.0, 
@@ -492,11 +486,18 @@ window.addEventListener('load', () => {
                                 info='Changing this value is not recommended.'
                             )
                             
+                            cfg = gr.Slider(
+                                label="CFG Scale", 
+                                minimum=1.0, maximum=15.0, 
+                                value=params.get("cfg", 1.0), step=0.1, 
+                                info='Higher values make generation adhere more closely to the prompt. Values between 5-10 are recommended.'
+                            )
+                            
                             gs = gr.Slider(
                                 label="Distilled CFG Scale", 
                                 minimum=1.0, maximum=32.0, 
                                 value=params.get("gs", 10.0), step=0.01, 
-                                info='Changing this value is not recommended.'
+                                info='Works together with CFG Scale. Changing this value is typically not recommended.'
                             )
                             
                             latent_window_size = gr.Slider(
