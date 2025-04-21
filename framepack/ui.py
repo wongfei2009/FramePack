@@ -215,7 +215,6 @@ def create_ui(models, stream):
         params = param_config.get_all_parameters()
         
         # Hidden parameters (not shown in UI but needed for function calls)
-        n_prompt = gr.Textbox(label="Negative Prompt", value=params.get("n_prompt", ""), visible=False)
         cfg = gr.Slider(
             label="CFG Scale", 
             minimum=1.0, maximum=32.0, 
@@ -245,6 +244,8 @@ def create_ui(models, stream):
                             input_image = gr.Image(sources='upload', type="numpy", label="Input Image", height=320)
                             end_frame = gr.Image(sources='upload', type="numpy", label="Final Frame (Optional)", height=320)
                         prompt = gr.Textbox(label="Prompt", value=params.get("prompt", ''), lines=4)
+                        n_prompt = gr.Textbox(label="Negative Prompt", value=params.get("n_prompt", ""), lines=2, 
+                              info="Items to exclude from generation")
                         example_quick_prompts = gr.Dataset(
                             samples=quick_prompts, 
                             label='Quick List', 
