@@ -84,11 +84,29 @@ def save_bcthw_as_mp4(x, output_filename, fps=10, crf=0):
             per_row = p
             break
 
-    os.makedirs(os.path.dirname(os.path.abspath(os.path.realpath(output_filename))), exist_ok=True)
+    # Ensure the output directory exists
+    output_dir = os.path.dirname(os.path.abspath(os.path.realpath(output_filename)))
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Process the tensor
     x = torch.clamp(x.float(), -1., 1.) * 127.5 + 127.5
     x = x.detach().cpu().to(torch.uint8)
     x = einops.rearrange(x, '(m n) c t h w -> t (m h) (n w) c', n=per_row)
+    
+    # Save the video
+    print(f"Saving video to {output_filename}")
     torchvision.io.write_video(output_filename, x, fps=fps, video_codec='libx264', options={'crf': str(int(crf))})
+    
+    # Verify file exists
+    if not os.path.exists(output_filename):
+        print(f"Warning: Failed to save video to {output_filename}")
+    else:
+        print(f"Video saved successfully: {os.path.getsize(output_filename)} bytes")
+    
+    # Ensure file is properly flushed to disk
+    import time
+    time.sleep(0.1)  # Small delay to ensure filesystem has processed the write
+    
     return x
 
 

@@ -527,7 +527,9 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
             print(f'Decoded. Current latent shape {real_history_latents.shape}; pixel shape {history_pixels.shape}')
             print(f'Video saved in {video_save_time:.2f} seconds')
 
-            # Push file to UI
+            # Push file to UI with a small delay to ensure the file is fully written
+            print(f"Worker: Pushing file update to UI: {output_filename}")
+            time.sleep(0.2)  # Small delay to ensure the file is fully written and available
             stream.output_queue.push(('file', output_filename))
 
             # Stop if this was the last section
