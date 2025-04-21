@@ -448,7 +448,7 @@ def create_ui(models, stream):
                 flag, data = stream.output_queue.next()
                 current_time = time.time()
                 
-                # Special handling for 'end' event - always process immediately
+                # Handle for 'end' event - always process immediately
                 if flag == 'end':
                     # Check if we received frame stats
                     if data is not None and isinstance(data, tuple) and len(data) == 2:
@@ -462,25 +462,21 @@ def create_ui(models, stream):
                     yield output_filename, gr.update(visible=False), completion_desc, completed_progress_bar, gr.update(interactive=True), gr.update(interactive=False)
                     break
                 
-                # Special handling for 'file' event - prioritize these
+                # Hhandle for 'file' event
                 elif flag == 'file':
                     # Always update the latest output filename
                     output_filename = data
                     print(f"UI: Received file update: {output_filename}")
-                    
-                    # Only send updates to UI at specified intervals to avoid overwhelming it
-                    if current_time - last_file_event_time >= THROTTLE_VIDEO_UPDATES:
-                        last_file_event_time = current_time
+                                            
+                    # Sleep a tiny bit to ensure the file is fully written and UI can process it
+                    time.sleep(1.0)
                         
-                        # Sleep a tiny bit to ensure the file is fully written and UI can process it
-                        time.sleep(0.2)
-                        
-                        # Check if file exists and has size > 0
-                        if os.path.exists(output_filename) and os.path.getsize(output_filename) > 0:
-                            yield output_filename, gr.update(), gr.update(), gr.update(), gr.update(interactive=False), gr.update(interactive=True)
-                        else:
-                            print(f"UI: Warning - File not ready yet: {output_filename}")
-                            # Don't yield if file isn't ready yet
+                    # Check if file exists and has size > 0
+                    if os.path.exists(output_filename) and os.path.getsize(output_filename) > 0:
+                        yield output_filename, gr.update(), gr.update(), gr.update(), gr.update(interactive=False), gr.update(interactive=True)
+                    else:
+                        print(f"UI: Warning - File not ready yet: {output_filename}")
+                        # Don't yield if file isn't ready yet
                     
                 # Handle progress events - can be throttled if needed
                 elif flag == 'progress':
