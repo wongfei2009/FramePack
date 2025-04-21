@@ -2,7 +2,6 @@ hf_download/
 local_models/
 outputs/
 repo/
-config/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
