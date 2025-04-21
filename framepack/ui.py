@@ -208,7 +208,7 @@ def create_ui(models, stream):
     }
     """
     
-    block = gr.Blocks(css=css).queue() # Remove stateful=True
+    block = gr.Blocks(css=css, title="FramePack").queue() # Remove stateful=True
     
     with block:
         gr.Markdown('# FramePack')
