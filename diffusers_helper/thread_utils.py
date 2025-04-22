@@ -23,6 +23,13 @@ class Listener:
             func, args, kwargs = task
             try:
                 func(*args, **kwargs)
+            except KeyboardInterrupt as ki:
+                # Special handling for task cancellation
+                if str(ki) == 'User ends the task.':
+                    print(f"Task cancelled by user")
+                else:
+                    # Re-raise unhandled keyboard interrupts
+                    raise
             except Exception as e:
                 print(f"Error in listener thread: {e}")
     

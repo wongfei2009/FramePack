@@ -278,6 +278,9 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
             # Check for user termination
             if stream.input_queue.top() == 'end':
+                print("User requested to end generation - exiting generation loop")
+                # Clear the 'end' signal from the queue to allow future generations
+                stream.input_queue.pop()
                 stream.output_queue.push(('end', None))
                 return output_filename
 
@@ -318,7 +321,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
                 # Check for user termination
                 if stream.input_queue.top() == 'end':
+                    print("User requested to end generation - cancelling in callback")
+                    # Clear the 'end' signal from the queue to allow future generations
+                    stream.input_queue.pop()
                     stream.output_queue.push(('end', None))
+                    # Use a special message that we catch in thread_utils.py
                     raise KeyboardInterrupt('User ends the task.')
 
                 current_step = d['i'] + 1
