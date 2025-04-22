@@ -367,7 +367,7 @@ def create_ui(models, stream):
                                 label="CFG Scale", 
                                 minimum=1.0, maximum=15.0, 
                                 value=params.get("cfg", 1.0), step=0.1, 
-                                info='Higher values make generation adhere more closely to the prompt. Values between 5-10 are recommended.'
+                                info='Higher values make generation adhere more closely to the prompt.'
                             )
                             
                             gs = gr.Slider(
