@@ -51,6 +51,7 @@ def sample_hunyuan(
         device=None,
         negative_kwargs=None,
         callback=None,
+        has_negative_prompt=None,  # Add parameter for explicit negative prompt flag
         **kwargs,
 ):
     device = device or transformer.device
@@ -96,6 +97,7 @@ def sample_hunyuan(
         cfg_scale=real_guidance_scale,
         cfg_rescale=guidance_rescale,
         concat_latent=concat_latent,
+        has_negative_prompt=has_negative_prompt,
         positive=dict(
             pooled_projections=prompt_poolers,
             encoder_hidden_states=prompt_embeds,

@@ -42,10 +42,15 @@ def fm_wrapper(transformer, t_scale=1000.0):
         if hasattr(pred_positive, 'cache_info'):
             cache_info = getattr(pred_positive, 'cache_info')
         
-        if cfg_scale == 1.0:
-            pred_negative = torch.zeros_like(pred_positive)
-        else:
+        # Use explicit flag to determine if negative prompt was provided
+        has_negative_prompt = extra_args.get('has_negative_prompt', False)
+        
+        if has_negative_prompt:
+            # Negative prompt was specified by user, use it regardless of cfg_scale
             pred_negative = transformer(hidden_states=hidden_states, timestep=timestep, return_dict=False, **extra_args['negative'])[0].float()
+        else:
+            # User didn't provide a negative prompt, use zeros
+            pred_negative = torch.zeros_like(pred_positive)
 
         pred_cfg = pred_negative + cfg_scale * (pred_positive - pred_negative)
         pred = rescale_noise_cfg(pred_cfg, pred_positive, guidance_rescale=cfg_rescale)

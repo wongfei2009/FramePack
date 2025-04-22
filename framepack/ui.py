@@ -217,12 +217,7 @@ def create_ui(models, stream):
         params = param_config.get_all_parameters()
         
         # Hidden parameters (not shown in UI but needed for function calls)
-        rs = gr.Slider(
-            label="CFG Re-Scale", 
-            minimum=0.0, maximum=1.0, 
-            value=params.get("rs", 0.0), step=0.01, 
-            visible=False
-        )
+        # CFG Re-Scale moved to Settings tab
         # Latent window size is now defined in the Parameters tab
         
         # Main tab interface
@@ -380,6 +375,13 @@ def create_ui(models, stream):
                                 minimum=1.0, maximum=32.0, 
                                 value=params.get("gs", 10.0), step=0.01, 
                                 info='Works together with CFG Scale. Changing this value is typically not recommended.'
+                            )
+                            
+                            rs = gr.Slider(
+                                label="CFG Re-Scale", 
+                                minimum=0.0, maximum=1.0, 
+                                value=params.get("rs", 0.0), step=0.01, 
+                                info='Controls the level of CFG re-scaling. Values above 0 can help reduce over-saturation and improve quality at higher CFG values.'
                             )
                             
                             latent_window_size = gr.Slider(

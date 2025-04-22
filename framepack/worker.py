@@ -133,15 +133,18 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
         performance_tracker.track_memory("after_text_encoding")
         print(f"Text encoding completed in {text_encoding_time:.2f} seconds")
 
-        # Handle negative prompt
-        if cfg == 1:
-            llama_vec_n = torch.zeros_like(llama_vec)
-            clip_l_pooler_n = torch.zeros_like(clip_l_pooler)
-        else:
+        # Handle negative prompt based on whether it's provided, not based on cfg value
+        has_negative_prompt = n_prompt.strip() != ""
+                    
+        # Encode the negative prompt if provided, otherwise use zeros
+        if has_negative_prompt:
             llama_vec_n, clip_l_pooler_n = encode_prompt_conds(
                 n_prompt, models.text_encoder, models.text_encoder_2, 
                 models.tokenizer, models.tokenizer_2
             )
+        else:
+            llama_vec_n = torch.zeros_like(llama_vec)
+            clip_l_pooler_n = torch.zeros_like(clip_l_pooler)
 
         # Process attention masks
         llama_vec, llama_attention_mask = crop_or_pad_yield_mask(llama_vec, length=512)
@@ -412,6 +415,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 real_guidance_scale=cfg,
                 distilled_guidance_scale=gs,
                 guidance_rescale=rs,
+                has_negative_prompt=has_negative_prompt,  # Pass the flag
                 # shift=3.0,
                 num_inference_steps=steps,
                 generator=rnd,
