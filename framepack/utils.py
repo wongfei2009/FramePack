@@ -66,3 +66,28 @@ def prepare_outputs_directory(outputs_folder='./outputs/'):
     """
     os.makedirs(outputs_folder, exist_ok=True)
     return outputs_folder
+
+def prepare_generation_subfolder(outputs_folder='./outputs/', job_id=None):
+    """
+    Prepare a subfolder within the outputs directory for a specific generation job.
+    
+    Args:
+        outputs_folder: Path to main outputs directory
+        job_id: Generation job ID (timestamp). If None, a new one will be generated.
+        
+    Returns:
+        Tuple of (subfolder_path, job_id)
+    """
+    from diffusers_helper.utils import generate_timestamp
+    
+    # Generate job ID if not provided
+    if job_id is None:
+        job_id = generate_timestamp()
+    
+    # Create subfolder path
+    subfolder_path = os.path.join(outputs_folder, job_id)
+    
+    # Create the subfolder
+    os.makedirs(subfolder_path, exist_ok=True)
+    
+    return subfolder_path, job_id

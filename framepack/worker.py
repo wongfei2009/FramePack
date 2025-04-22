@@ -16,6 +16,7 @@ from diffusers_helper.memory import (
     unload_complete_models, 
     load_model_as_complete
 )
+from framepack.utils import prepare_generation_subfolder
 from diffusers_helper.hunyuan import (
     encode_prompt_conds, 
     vae_decode, 
@@ -84,8 +85,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
     total_latent_sections = (total_second_length * 24) / (latent_window_size * 4)
     total_latent_sections = int(max(round(total_latent_sections), 1))
 
-    # Generate job ID for file naming
-    job_id = generate_timestamp()
+    # Generate job ID and create subfolder for this generation
+    generation_folder, job_id = prepare_generation_subfolder(outputs_folder, None)
+    
+    # Log the subfolder creation
+    print(f"Creating output subfolder: {generation_folder}")
 
     stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Starting ...'))))
     
@@ -175,7 +179,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
         print(f"Resized image to: {width}x{height}")
 
         # Save processed input image
-        Image.fromarray(input_image_np).save(os.path.join(outputs_folder, f'{job_id}.png'))
+        Image.fromarray(input_image_np).save(os.path.join(generation_folder, f'{job_id}.png'))
 
         # Convert to PyTorch tensor
         # Convert to PyTorch tensor
@@ -190,7 +194,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
             end_frame_np = resize_and_center_crop(end_frame, target_width=width, target_height=height)
             
             # Save processed end frame image
-            Image.fromarray(end_frame_np).save(os.path.join(outputs_folder, f'{job_id}_end.png'))
+            Image.fromarray(end_frame_np).save(os.path.join(generation_folder, f'{job_id}_end.png'))
             
             # Convert to PyTorch tensor
             end_frame_pt = torch.from_numpy(end_frame_np).float() / 127.5 - 1
@@ -526,7 +530,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
 
             # Save current progress as video
             output_filename = os.path.join(
-                outputs_folder, 
+                generation_folder, 
                 f'{job_id}_{total_generated_latent_frames}.mp4'
             )
 
