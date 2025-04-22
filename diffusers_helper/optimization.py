@@ -103,12 +103,11 @@ def optimize_for_inference(transformer, high_vram=False, enable_compile=False):
             # This is safer for models with CUDA graph dependencies
             if not hasattr(transformer, '_original_forward'):
                 transformer._original_forward = transformer.forward
-                
-            transformer.forward = torch.compile(
+                transformer.forward = torch.compile(
                     transformer._original_forward,
                     mode="reduce-overhead", 
                     fullgraph=False
-                )
+                )                    
             print("Applied torch.compile optimization to transformer's forward method")
                 
         except Exception as e:
