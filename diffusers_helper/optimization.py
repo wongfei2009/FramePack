@@ -85,28 +85,37 @@ def configure_teacache(transformer, vram_gb, steps=25, rel_l1_thresh=None):
 
 def optimize_for_inference(transformer, high_vram=False, enable_compile=False):
     """Apply various optimizations for inference"""
+    # Debug info
+    print(f"optimize_for_inference called with high_vram={high_vram}, enable_compile={enable_compile}")
+    print(f"PyTorch version: {torch.__version__}")
+    print(f"torch.compile available: {hasattr(torch, 'compile')}")
+    
+    # Store original forward functions if we need to restore
+    if not hasattr(transformer, '_original_forwards'):
+        transformer._original_forwards = {}
+    
     # Apply torch.compile optimization if enabled, regardless of VRAM size
     if enable_compile and hasattr(torch, 'compile') and torch.__version__ >= '2.0.0':
         try:
-            # Only compile the most intensive operations
-            if hasattr(transformer, 'model') and hasattr(transformer.model, 'norm'):
-                print("Applying PyTorch 2.0+ compile optimizations...")
-                # Store original forward function
-                if not hasattr(transformer, '_original_norm_forward'):
-                    transformer._original_norm_forward = transformer.model.norm.forward
+            print("Applying PyTorch 2.0+ compile optimizations...")
+            
+            # Instead of compiling individual components, compile the main forward method
+            # This is safer for models with CUDA graph dependencies
+            if not hasattr(transformer, '_original_forward'):
+                transformer._original_forward = transformer.forward
                 
-                # Apply torch compile to the normalization layers
-                transformer.model.norm.forward = torch.compile(
-                    transformer.model.norm.forward,
+            transformer.forward = torch.compile(
+                    transformer._original_forward,
                     mode="reduce-overhead", 
                     fullgraph=False
                 )
-                print("Applied torch.compile optimization to normalization layers")
+            print("Applied torch.compile optimization to transformer's forward method")
+                
         except Exception as e:
             print(f"Failed to apply torch.compile: {e}")
-            # Restore original if needed
-            if hasattr(transformer, '_original_norm_forward'):
-                transformer.model.norm.forward = transformer._original_norm_forward
+            # Restore original forward method if needed
+            if hasattr(transformer, '_original_forward'):
+                transformer.forward = transformer._original_forward
     
     # Apply VRAM-dependent optimizations only for high VRAM systems
     if high_vram:
