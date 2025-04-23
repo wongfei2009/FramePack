@@ -84,91 +84,93 @@ def configure_teacache(transformer, vram_gb, steps=25, rel_l1_thresh=None):
     return transformer
 
 def optimize_for_inference(transformer, high_vram=False, enable_optimization=False):
-    """Apply various optimizations for inference"""
+    """
+    Apply optimizations that complement Sage Attention for inference.
+    
+    This version is streamlined for systems with Sage Attention always enabled,
+    focusing only on optimizations that work alongside Sage Attention rather
+    than competing with it.
+    
+    Args:
+        transformer: The transformer model to optimize
+        high_vram: Whether the system has high VRAM available
+        enable_optimization: Whether to enable optimizations (kept for API compatibility)
+    
+    Returns:
+        The optimized transformer model
+    """
     # Debug info
     print(f"optimize_for_inference called with high_vram={high_vram}, enable_optimization={enable_optimization}")
     print(f"PyTorch version: {torch.__version__}")
-    print(f"torch.compile available: {hasattr(torch, 'compile')}")
     
     # Store original forward functions if we need to restore
     if not hasattr(transformer, '_original_forwards'):
         transformer._original_forwards = {}
     
-    # Apply optimizations if enabled, regardless of VRAM size
-    if enable_optimization and torch.__version__ >= '2.0.0':
-        try:
-            print("Applying transformer inference optimizations...")
-            
-            # Apply BFloat16 conversion for specific classes if they exist
-            from diffusers_helper.models.hunyuan_video_packed import HunyuanVideoTransformerBlock, HunyuanVideoSingleTransformerBlock
-            
-            # Function to apply efficient attention operations
-            def optimize_attention(obj):
-                if hasattr(obj, 'attn') and hasattr(obj.attn, 'to_q'):
-                    print(f"Optimizing attention for {type(obj).__name__}")
-                    # Force efficient attention operations
-                    if torch.cuda.is_available() and hasattr(torch.backends, 'cuda'):
-                        torch.backends.cuda.matmul.allow_tf32 = True
-                        if hasattr(torch.backends.cuda, 'enable_flash_sdp'):
-                            torch.backends.cuda.enable_flash_sdp(True)
-                            print("  - Enabled Flash Attention")
-                        if hasattr(torch.backends.cuda, 'enable_mem_efficient_sdp'):
-                            torch.backends.cuda.enable_mem_efficient_sdp(True)
-                            print("  - Enabled Memory-Efficient Attention")
-                        if hasattr(torch.backends.cuda, 'enable_math_sdp'):
-                            torch.backends.cuda.enable_math_sdp(True)
-                            print("  - Enabled Math Attention")
-                    
-                    # Use BFloat16 for attention computation
-                    if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
-                        try:
-                            obj.attn.to_q = obj.attn.to_q.to(torch.bfloat16)
-                            obj.attn.to_k = obj.attn.to_k.to(torch.bfloat16)
-                            obj.attn.to_v = obj.attn.to_v.to(torch.bfloat16)
-                            print(f"  - Converted attention projections to BFloat16")
-                        except Exception as e:
-                            print(f"  - Could not convert to BFloat16: {e}")
+    # We apply optimizations regardless of the enable_optimization flag
+    # since these are specifically chosen to complement Sage Attention
+    try:
+        print("Applying Sage Attention-compatible optimizations...")
+        
+        from diffusers_helper.models.hunyuan_video_packed import HunyuanVideoTransformerBlock, HunyuanVideoSingleTransformerBlock
+        
+        # Function to optimize projection matrices (these run before Sage Attention is called)
+        def optimize_projections(obj):
+            if hasattr(obj, 'attn') and hasattr(obj.attn, 'to_q'):
+                print(f"Optimizing projections for {type(obj).__name__}")
                 
-                # Apply recursively to any modules
-                for name, child in obj.named_children():
-                    optimize_attention(child)
-            
-            # Apply optimization to transformer blocks
-            if hasattr(transformer, 'transformer_blocks'):
-                print(f"Optimizing {len(transformer.transformer_blocks)} transformer blocks")
-                for block in transformer.transformer_blocks:
-                    optimize_attention(block)
-            
-            if hasattr(transformer, 'single_transformer_blocks'):
-                print(f"Optimizing {len(transformer.single_transformer_blocks)} single transformer blocks")
-                for block in transformer.single_transformer_blocks:
-                    optimize_attention(block)
-            
-            # Enable fused kernels for attention operations if available
-            if hasattr(torch, '_C') and hasattr(torch._C, '_jit_set_profiling_executor'):
-                torch._C._jit_set_profiling_executor(True)
-                torch._C._jit_set_profiling_mode(True)
-                print("Enabled fused kernel profiling")
+                # Enable TF32 for faster matmul operations throughout the model
+                if torch.cuda.is_available() and hasattr(torch.backends, 'cuda'):
+                    torch.backends.cuda.matmul.allow_tf32 = True
+                    print("  - Enabled TF32 for matrix multiplications")
                 
-            if hasattr(torch._C, '_jit_override_can_fuse_on_cpu'):
-                torch._C._jit_override_can_fuse_on_cpu(True)
-                print("Enabled CPU kernel fusion")
-                
-            if hasattr(torch._C, '_jit_override_can_fuse_on_gpu'):
-                torch._C._jit_override_can_fuse_on_gpu(True)
-                print("Enabled GPU kernel fusion")
-                
-            # Removed deprecated nvFuser-related code
-                
-            print("Successfully applied alternative optimization techniques")
+                # Use BFloat16 for projection matrices (these run before Sage Attention)
+                if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
+                    try:
+                        obj.attn.to_q = obj.attn.to_q.to(torch.bfloat16)
+                        obj.attn.to_k = obj.attn.to_k.to(torch.bfloat16)
+                        obj.attn.to_v = obj.attn.to_v.to(torch.bfloat16)
+                        print(f"  - Converted projections to BFloat16")
+                    except Exception as e:
+                        print(f"  - Could not convert to BFloat16: {e}")
             
-        except Exception as e:
-            print(f"Failed to apply optimizations: {e}")
+            # Apply recursively to any child modules
+            for name, child in obj.named_children():
+                optimize_projections(child)
+        
+        # Apply optimization to transformer blocks
+        if hasattr(transformer, 'transformer_blocks'):
+            print(f"Optimizing {len(transformer.transformer_blocks)} transformer blocks")
+            for block in transformer.transformer_blocks:
+                optimize_projections(block)
+        
+        if hasattr(transformer, 'single_transformer_blocks'):
+            print(f"Optimizing {len(transformer.single_transformer_blocks)} single transformer blocks")
+            for block in transformer.single_transformer_blocks:
+                optimize_projections(block)
+        
+        # Enable kernel fusion optimizations for better throughput
+        if hasattr(torch, '_C') and hasattr(torch._C, '_jit_set_profiling_executor'):
+            torch._C._jit_set_profiling_executor(True)
+            torch._C._jit_set_profiling_mode(True)
+            print("Enabled fused kernel profiling")
+            
+        if hasattr(torch._C, '_jit_override_can_fuse_on_cpu'):
+            torch._C._jit_override_can_fuse_on_cpu(True)
+            print("Enabled CPU kernel fusion")
+            
+        if hasattr(torch._C, '_jit_override_can_fuse_on_gpu'):
+            torch._C._jit_override_can_fuse_on_gpu(True)
+            print("Enabled GPU kernel fusion")
+            
+        print("Successfully applied Sage Attention-compatible optimizations")
+        
+    except Exception as e:
+        print(f"Failed to apply optimizations: {e}")
     
     # Apply VRAM-dependent optimizations only for high VRAM systems
-    if high_vram:
-        # Set maximum batch sizes for attention operations
-        if hasattr(transformer, 'set_attention_optimization'):
-            transformer.set_attention_optimization(True)
+    if high_vram and hasattr(transformer, 'set_attention_optimization'):
+        transformer.set_attention_optimization(True)
+        print("Applied high VRAM optimizations")
     
     return transformer
