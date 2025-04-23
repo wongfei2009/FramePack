@@ -83,10 +83,10 @@ def configure_teacache(transformer, vram_gb, steps=25, rel_l1_thresh=None):
     
     return transformer
 
-def optimize_for_inference(transformer, high_vram=False, enable_compile=False):
+def optimize_for_inference(transformer, high_vram=False, enable_optimization=False):
     """Apply various optimizations for inference"""
     # Debug info
-    print(f"optimize_for_inference called with high_vram={high_vram}, enable_compile={enable_compile}")
+    print(f"optimize_for_inference called with high_vram={high_vram}, enable_optimization={enable_optimization}")
     print(f"PyTorch version: {torch.__version__}")
     print(f"torch.compile available: {hasattr(torch, 'compile')}")
     
@@ -94,27 +94,76 @@ def optimize_for_inference(transformer, high_vram=False, enable_compile=False):
     if not hasattr(transformer, '_original_forwards'):
         transformer._original_forwards = {}
     
-    # Apply torch.compile optimization if enabled, regardless of VRAM size
-    if enable_compile and hasattr(torch, 'compile') and torch.__version__ >= '2.0.0':
+    # Apply optimizations if enabled, regardless of VRAM size
+    if enable_optimization and torch.__version__ >= '2.0.0':
         try:
-            print("Applying PyTorch 2.0+ compile optimizations...")
+            print("Applying transformer inference optimizations...")
             
-            # Instead of compiling individual components, compile the main forward method
-            # This is safer for models with CUDA graph dependencies
-            if not hasattr(transformer, '_original_forward'):
-                transformer._original_forward = transformer.forward
-                transformer.forward = torch.compile(
-                    transformer._original_forward,
-                    mode="reduce-overhead", 
-                    fullgraph=False
-                )                    
-            print("Applied torch.compile optimization to transformer's forward method")
+            # Apply BFloat16 conversion for specific classes if they exist
+            from diffusers_helper.models.hunyuan_video_packed import HunyuanVideoTransformerBlock, HunyuanVideoSingleTransformerBlock
+            
+            # Function to apply efficient attention operations
+            def optimize_attention(obj):
+                if hasattr(obj, 'attn') and hasattr(obj.attn, 'to_q'):
+                    print(f"Optimizing attention for {type(obj).__name__}")
+                    # Force efficient attention operations
+                    if torch.cuda.is_available() and hasattr(torch.backends, 'cuda'):
+                        torch.backends.cuda.matmul.allow_tf32 = True
+                        if hasattr(torch.backends.cuda, 'enable_flash_sdp'):
+                            torch.backends.cuda.enable_flash_sdp(True)
+                            print("  - Enabled Flash Attention")
+                        if hasattr(torch.backends.cuda, 'enable_mem_efficient_sdp'):
+                            torch.backends.cuda.enable_mem_efficient_sdp(True)
+                            print("  - Enabled Memory-Efficient Attention")
+                        if hasattr(torch.backends.cuda, 'enable_math_sdp'):
+                            torch.backends.cuda.enable_math_sdp(True)
+                            print("  - Enabled Math Attention")
+                    
+                    # Use BFloat16 for attention computation
+                    if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
+                        try:
+                            obj.attn.to_q = obj.attn.to_q.to(torch.bfloat16)
+                            obj.attn.to_k = obj.attn.to_k.to(torch.bfloat16)
+                            obj.attn.to_v = obj.attn.to_v.to(torch.bfloat16)
+                            print(f"  - Converted attention projections to BFloat16")
+                        except Exception as e:
+                            print(f"  - Could not convert to BFloat16: {e}")
                 
+                # Apply recursively to any modules
+                for name, child in obj.named_children():
+                    optimize_attention(child)
+            
+            # Apply optimization to transformer blocks
+            if hasattr(transformer, 'transformer_blocks'):
+                print(f"Optimizing {len(transformer.transformer_blocks)} transformer blocks")
+                for block in transformer.transformer_blocks:
+                    optimize_attention(block)
+            
+            if hasattr(transformer, 'single_transformer_blocks'):
+                print(f"Optimizing {len(transformer.single_transformer_blocks)} single transformer blocks")
+                for block in transformer.single_transformer_blocks:
+                    optimize_attention(block)
+            
+            # Enable fused kernels for attention operations if available
+            if hasattr(torch, '_C') and hasattr(torch._C, '_jit_set_profiling_executor'):
+                torch._C._jit_set_profiling_executor(True)
+                torch._C._jit_set_profiling_mode(True)
+                print("Enabled fused kernel profiling")
+                
+            if hasattr(torch._C, '_jit_override_can_fuse_on_cpu'):
+                torch._C._jit_override_can_fuse_on_cpu(True)
+                print("Enabled CPU kernel fusion")
+                
+            if hasattr(torch._C, '_jit_override_can_fuse_on_gpu'):
+                torch._C._jit_override_can_fuse_on_gpu(True)
+                print("Enabled GPU kernel fusion")
+                
+            # Removed deprecated nvFuser-related code
+                
+            print("Successfully applied alternative optimization techniques")
+            
         except Exception as e:
-            print(f"Failed to apply torch.compile: {e}")
-            # Restore original forward method if needed
-            if hasattr(transformer, '_original_forward'):
-                transformer.forward = transformer._original_forward
+            print(f"Failed to apply optimizations: {e}")
     
     # Apply VRAM-dependent optimizations only for high VRAM systems
     if high_vram:

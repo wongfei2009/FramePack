@@ -327,10 +327,10 @@ def create_ui(models, stream):
                                 info='Controls cache reuse frequency. Higher values = faster generation but potential quality loss. Lower values = slower but higher quality.'
                             )
                             
-                            enable_compile = gr.Checkbox(
-                                label='Enable PyTorch Compile', 
-                                value=params.get("enable_compile", False), 
-                                info='Enables PyTorch 2.0+ compile optimization. Can improve performance but may cause instability on some systems.'
+                            enable_optimization = gr.Checkbox(
+                                label='Enable PyTorch Optimization', 
+                                value=params.get("enable_optimization", False), 
+                                info='Enables efficient attention and BFloat16 optimizations.'
                             )
                             
                             gpu_memory_preservation = gr.Slider(
@@ -415,7 +415,7 @@ def create_ui(models, stream):
         
         # Define process function
         def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-                    steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_compile):
+                    steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization):
             """
             Process the video generation request.
             
@@ -434,7 +434,7 @@ def create_ui(models, stream):
             async_run(
                 worker, 
                 input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_compile,
+                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization,
                 models, stream
             )
 
@@ -496,7 +496,7 @@ def create_ui(models, stream):
             fn=process,
             inputs=[
                 input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_compile
+                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization
             ],
             outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button]
         )
@@ -529,7 +529,7 @@ def create_ui(models, stream):
         # Function to save all parameters at once
         def save_all_parameters(seed_val, total_second_val, resolution_scale_val, 
                                use_teacache_val, teacache_thresh_val, steps_val, gs_val,
-                               gpu_memory_val, latent_window_val, enable_compile_val, mp4_crf_val,
+                               gpu_memory_val, latent_window_val, enable_optimization_val, mp4_crf_val,
                                prompt_val, n_prompt_val, cfg_val, rs_val):
             """Save all current parameter values."""
             params_to_save = {
@@ -542,7 +542,7 @@ def create_ui(models, stream):
                 "gs": gs_val,
                 "gpu_memory_preservation": gpu_memory_val,
                 "latent_window_size": latent_window_val,
-                "enable_compile": enable_compile_val,
+                "enable_optimization": enable_optimization_val,
                 "mp4_crf": mp4_crf_val,
                 "prompt": prompt_val,
                 "n_prompt": n_prompt_val,
@@ -577,7 +577,7 @@ def create_ui(models, stream):
                 gs: defaults["gs"],
                 gpu_memory_preservation: defaults["gpu_memory_preservation"],
                 latent_window_size: defaults["latent_window_size"],
-                enable_compile: defaults["enable_compile"],
+                enable_optimization: defaults["enable_optimization"],
                 mp4_crf: defaults["mp4_crf"],
                 prompt: defaults["prompt"],
                 n_prompt: defaults["n_prompt"],
@@ -602,7 +602,7 @@ def create_ui(models, stream):
                 seed, total_second_length, resolution_scale,
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
-                enable_compile, mp4_crf, prompt, n_prompt,
+                enable_optimization, mp4_crf, prompt, n_prompt,
                 cfg, rs, save_status
             ],
             show_progress=False
@@ -637,7 +637,7 @@ def create_ui(models, stream):
                 seed, total_second_length, resolution_scale,
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
-                enable_compile, mp4_crf, prompt, n_prompt,
+                enable_optimization, mp4_crf, prompt, n_prompt,
                 cfg, rs
             ],
             outputs=[save_status]
@@ -660,7 +660,7 @@ def create_ui(models, stream):
                 seed, total_second_length, resolution_scale,
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
-                enable_compile, mp4_crf, prompt, n_prompt,
+                enable_optimization, mp4_crf, prompt, n_prompt,
                 cfg, rs, save_status
             ]
         )
@@ -687,7 +687,7 @@ def create_ui(models, stream):
         components_to_load = [
             seed, total_second_length, resolution_scale, use_teacache,
             teacache_thresh, steps, gs, gpu_memory_preservation,
-            latent_window_size, enable_compile, mp4_crf, prompt,
+            latent_window_size, enable_optimization, mp4_crf, prompt,
             n_prompt, cfg, rs
         ]
 
@@ -706,7 +706,7 @@ def create_ui(models, stream):
                 params.get("gs", 10.0),
                 params.get("gpu_memory_preservation", 6),
                 params.get("latent_window_size", 9),
-                params.get("enable_compile", False),
+                params.get("enable_optimization", False),
                 params.get("mp4_crf", 16),
                 params.get("prompt", ''),
                 params.get("n_prompt", ''),

@@ -205,7 +205,7 @@ class FramePackModels:
             self.vae.to(gpu)
             self.transformer.to(gpu)
 
-    def prepare_for_inference(self, gpu_memory_preservation, use_teacache, steps, rel_l1_thresh=0.15, enable_compile=False):
+    def prepare_for_inference(self, gpu_memory_preservation, use_teacache, steps, rel_l1_thresh=0.15, enable_optimization=False):
         """
         Prepare models for inference.
         
@@ -214,7 +214,7 @@ class FramePackModels:
             use_teacache: Whether to use TeaCache for acceleration
             steps: Number of inference steps
             rel_l1_thresh: Threshold for TeaCache relative L1 distance (lower = faster but lower quality)
-            enable_compile: Whether to enable torch.compile optimization
+            enable_optimization: Whether to enable PyTorch optimizations (Flash Attention, BFloat16)
         """
         if not self.high_vram:
             # Clean up memory before loading transformer
@@ -257,8 +257,8 @@ class FramePackModels:
             print("TeaCache disabled as per user request")
             
         # Apply additional inference optimizations
-        optimize_for_inference(self.transformer, high_vram=self.high_vram, enable_compile=enable_compile)
-        if enable_compile:
-            print("PyTorch compile optimization enabled")
+        optimize_for_inference(self.transformer, high_vram=self.high_vram, enable_optimization=enable_optimization)
+        if enable_optimization:
+            print("PyTorch optimization enabled")
         else:
-            print("PyTorch compile optimization disabled")
+            print("PyTorch optimization disabled")
