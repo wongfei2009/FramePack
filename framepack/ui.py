@@ -41,6 +41,16 @@ def create_ui(models, stream):
     
     # Create UI with CSS
     css = make_progress_bar_css() + """
+    #generation-panel {
+        position: sticky !important;
+        bottom: 0 !important;
+        background: white !important;
+        border-top: 1px solid #ddd !important;
+        padding: 10px !important;
+        z-index: 100 !important;
+        margin-top: 20px !important;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.05) !important;
+    }
     .tab-content {
         padding: 15px 0;
     }
@@ -60,8 +70,20 @@ def create_ui(models, stream):
     .full-width-row {
         width: 100%;
     }
-    .input-tab, .output-tab, .params-tab {
+    .input-tab, .output-tab, .params-tab, .section-tab {
         padding: 10px;
+    }
+    
+    /* Section tab styling */
+    .section-tab .highlighted-keyframe {
+        border: 3px solid #ff3860 !important; 
+        box-shadow: 0 0 10px rgba(255, 56, 96, 0.5) !important;
+    }
+    
+    .section-tab .section-info-text {
+        font-size: 0.9em;
+        color: #666;
+        margin: 5px 0;
     }
     .generation-info {
         background-color: rgba(0,0,0,0.03);
@@ -223,15 +245,173 @@ def create_ui(models, stream):
         # Main tab interface
         
         with gr.Tabs():
-            # Tab 1: Input and Output Combined
+            # Tab 1: Generation with integrated section controls
             with gr.TabItem("Generation", elem_classes="generation-tab"):
                 with gr.Row():
                     # Left column for input
                     with gr.Column(scale=1):
-                        # Input image, end frame and prompt
+                        # Input image and end frame
                         with gr.Row():
                             input_image = gr.Image(sources='upload', type="numpy", label="Input Image", height=320)
                             end_frame = gr.Image(sources='upload', type="numpy", label="Final Frame (Optional)", height=320)
+                        
+                        # Section Controls right after the input images
+                        with gr.Accordion("Section Controls", open=False):
+                            # Top explanation and checkbox to enable section controls
+                            enable_section_controls = gr.Checkbox(
+                                label="Enable Section-Specific Controls", 
+                                value=False,
+                                info="When enabled, you can specify different images and prompts for different sections of your video."
+                            )
+                            
+                            gr.Markdown("""
+                            Define specific images and prompts for different sections of your video:
+                            - Each section corresponds to approximately 33 frames (1.4 seconds at 24fps)
+                            - Section 0 starts at the beginning of the video
+                            - If a section has no specific image/prompt, it will use the previous section's settings
+                            """)
+                            
+                            # Function to collect section settings
+                            def collect_section_settings(*args):
+                                # args contains all section inputs: [num1, img1, prompt1, num2, img2, prompt2, ...]
+                                result = []
+                                for i in range(0, len(args), 3):
+                                    if i+2 < len(args):  # Ensure we have complete triplets
+                                        num, img, prompt = args[i], args[i+1], args[i+2]
+                                        if num is not None:  # Only include sections with numbers
+                                            result.append([num, img, prompt])
+                                return result
+                                
+                            # Function to update section settings when inputs change
+                            def update_section_settings(enable_controls, *args):
+                                if not enable_controls:
+                                    return None
+                                return collect_section_settings(*args)
+                            
+                            # Section settings container - shown/hidden based on checkbox
+                            section_controls_group = gr.Group(visible=False)
+                            with section_controls_group:
+                                # Create section settings UI with visibility toggles
+                                section_inputs = []
+                                max_sections = 5
+                                
+                                # First section always visible
+                                with gr.Group():
+                                    with gr.Row():
+                                        with gr.Column(scale=1):
+                                            section_number_1 = gr.Number(
+                                                label=f"Section", 
+                                                value=0,  # 0-based index for actual section
+                                                precision=0
+                                            )
+                                            section_prompt_1 = gr.Textbox(
+                                                label=f"Section Prompt", 
+                                                placeholder="Section-specific prompt (optional)",
+                                                lines=2
+                                            )
+                                        
+                                        with gr.Column(scale=2):
+                                            section_image_1 = gr.Image(
+                                                label=f"Section Image", 
+                                                type="numpy", 
+                                                sources="upload"
+                                            )
+                                    
+                                    section_inputs.append([section_number_1, section_image_1, section_prompt_1])
+                                
+                                # Additional sections that are hidden by default
+                                section_groups = []
+                                
+                                for i in range(2, max_sections + 1):
+                                    with gr.Group(visible=False) as section_group:
+                                        section_groups.append(section_group)
+                                        
+                                        with gr.Row():
+                                            with gr.Column(scale=1):
+                                                section_number = gr.Number(
+                                                    label=f"Section", 
+                                                    value=i-1,  # 0-based index
+                                                    precision=0
+                                                )
+                                                section_prompt = gr.Textbox(
+                                                    label=f"Section Prompt", 
+                                                    placeholder="Section-specific prompt (optional)",
+                                                    lines=2
+                                                )
+                                            
+                                            with gr.Column(scale=2):
+                                                section_image = gr.Image(
+                                                    label=f"Section Image", 
+                                                    type="numpy", 
+                                                    sources="upload"
+                                                )
+                                        
+                                        section_inputs.append([section_number, section_image, section_prompt])
+                                
+                                # Show/hide sections with buttons
+                                with gr.Row():
+                                    add_section_btn = gr.Button("+ Add Section", size="sm")
+                                    remove_section_btn = gr.Button("- Remove Section", size="sm")
+                                
+                                # Track the current number of visible sections
+                                current_sections = gr.State(1)
+                                
+                                # Function to add a section
+                                def add_section(current_count):
+                                    if current_count < max_sections:
+                                        # Make the next section visible
+                                        updates = []
+                                        for i, group in enumerate(section_groups):
+                                            # Make visible if this is the next section to show
+                                            if i == current_count - 1:
+                                                updates.append(gr.update(visible=True))
+                                            else:
+                                                # Keep current visibility for others
+                                                updates.append(gr.update())
+                                        return [current_count + 1] + updates
+                                    return [current_count] + [gr.update() for _ in section_groups]
+                                
+                                # Function to remove a section
+                                def remove_section(current_count):
+                                    if current_count > 1:
+                                        # Hide the last visible section
+                                        updates = []
+                                        for i, group in enumerate(section_groups):
+                                            # Hide if this is the last visible section
+                                            if i == current_count - 2:
+                                                updates.append(gr.update(visible=False))
+                                            else:
+                                                # Keep current visibility for others
+                                                updates.append(gr.update())
+                                        return [current_count - 1] + updates
+                                    return [current_count] + [gr.update() for _ in section_groups]
+                                
+                                # Connect the buttons
+                                add_section_btn.click(
+                                    fn=add_section,
+                                    inputs=[current_sections],
+                                    outputs=[current_sections] + section_groups
+                                )
+                                
+                                remove_section_btn.click(
+                                    fn=remove_section,
+                                    inputs=[current_sections],
+                                    outputs=[current_sections] + section_groups
+                                )
+                            
+                            # The section add/remove functions are now defined above
+                            
+                            # Toggle visibility of section controls based on checkbox
+                            enable_section_controls.change(
+                                fn=lambda x: gr.update(visible=x),
+                                inputs=[enable_section_controls],
+                                outputs=[section_controls_group]
+                            )
+                        
+                        # Hidden state to store section settings
+                        section_settings = gr.State(None)
+                        
+                        # Prompt inputs after section controls
                         prompt = gr.Textbox(label="Prompt", value=params.get("prompt", ''), lines=4)
                         n_prompt = gr.Textbox(label="Negative Prompt", value=params.get("n_prompt", ""), lines=2, 
                               info="Items to exclude from generation")
@@ -269,11 +449,6 @@ def create_ui(models, stream):
                             value=params.get("resolution_scale", "Full (1x)"),
                             info="Half resolution provides much faster generation for previews."
                         )
-                        
-                        # Action buttons
-                        with gr.Row(elem_classes="action-buttons"):
-                            start_button = gr.Button(value="Start Generation", variant="primary", size="lg")
-                            end_button = gr.Button(value="End Generation", interactive=False, size="lg")
                         
                         # TeaCache removed from here and moved to Parameters tab
                     
@@ -351,10 +526,20 @@ def create_ui(models, stream):
                             'Note: Ending actions are generated before starting actions due to inverted sampling. If starting action is not visible yet, wait for more frames. You can optionally specify a final frame to guide the ending of the video.',
                             elem_classes="info-text"
                         )
-                        
-                        # Video poller removed - relying only on async stream signaling
                 
-            # Tab 2: Settings
+                # Fixed generation panel at bottom
+                with gr.Row(elem_id="generation-panel"):
+                    with gr.Column(scale=1):
+                        # Status indicators
+                        generation_status = gr.Markdown("Ready to generate")
+                    
+                    with gr.Column(scale=1):
+                        # Generation controls
+                        with gr.Row():
+                            start_button = gr.Button("Generate Video", variant="primary", size="lg")
+                            end_button = gr.Button("Stop Generation", interactive=False, size="lg")
+                
+            # Tab 2: Settings Tab (renamed from Performance)
             with gr.TabItem("Settings", elem_classes="params-tab"):
                 with gr.Column(elem_classes="compact-slider"):
                     # Remove the reset container and status message
@@ -479,7 +664,7 @@ def create_ui(models, stream):
         # Define process function
         def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
                     steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization,
-                    end_frame_strength):
+                    end_frame_strength, enable_section_controls, section_settings=None):
             """
             Process the video generation request.
             
@@ -494,12 +679,18 @@ def create_ui(models, stream):
             # Initial UI state - disable start button, enable end button
             yield None, None, '', '', gr.update(interactive=False), gr.update(interactive=True)
 
+            # Process section settings if enabled
+            processed_section_settings = None
+            if enable_section_controls and section_settings is not None:
+                processed_section_settings = section_settings
+                print(f"Using section-specific settings: {len(processed_section_settings)} sections configured")
+            
             # Start the worker in a separate thread
             async_run(
                 worker, 
                 input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization,
-                end_frame_strength,
+                end_frame_strength, processed_section_settings,
                 models, stream
             )
 
@@ -517,15 +708,41 @@ def create_ui(models, stream):
                 
                 # Handle for 'end' event - always process immediately
                 if flag == 'end':
-                    # Check if we received frame stats
-                    if data is not None and isinstance(data, tuple) and len(data) == 2:
-                        final_frame_count, final_video_length = data
-                        completion_desc = f'✅ Generation completed! Total frames: {final_frame_count}, Video length: {final_video_length:.2f} seconds (FPS-24)'
+                    # Check if we received enhanced stats
+                    if data is not None and isinstance(data, tuple):
+                        if len(data) >= 4:  # Enhanced format with time and sections
+                            final_frame_count, final_video_length, total_generation_time, total_sections = data
+                            
+                            # Format total time nicely
+                            if total_generation_time < 60:
+                                time_str = f"{total_generation_time:.1f} seconds"
+                            elif total_generation_time < 3600:
+                                minutes = int(total_generation_time // 60)
+                                seconds = int(total_generation_time % 60)
+                                time_str = f"{minutes}m {seconds}s"
+                            else:
+                                hours = int(total_generation_time // 3600)
+                                minutes = int((total_generation_time % 3600) // 60)
+                                seconds = int(total_generation_time % 60)
+                                time_str = f"{hours}h {minutes}m {seconds}s"
+                                
+                            # Enhanced completion message with more organized display
+                            completion_desc = f"""✅ Generation completed!
+
+🎬 **Video Statistics**:
+• Frames: {final_frame_count}
+• Length: {final_video_length:.2f} seconds (24 FPS)
+
+⏱️ **Generation Details**:
+• Time: {time_str}
+• Sections: {total_sections}"""
                     else:
-                        completion_desc = '✅ Generation completed!'
+                        completion_desc = """✅ Generation completed!
+
+Video generation process has finished successfully."""
                     
                     # Pass completion message to UI with completed progress bar
-                    completed_progress_bar = make_progress_bar_html(100, "Generation completed!")
+                    completed_progress_bar = make_progress_bar_html(100, "")
                     yield output_filename, gr.update(visible=False), completion_desc, completed_progress_bar, gr.update(interactive=True), gr.update(interactive=False)
                     break
                 
@@ -557,12 +774,27 @@ def create_ui(models, stream):
             
         # Connect callbacks
 
+        # Connect section inputs to settings updates
+        if 'section_inputs' in locals() and 'section_settings' in locals():
+            section_input_list = []
+            for inputs in section_inputs:
+                section_input_list.extend(inputs)
+            
+            # Update section settings when any input changes
+            for inp in section_input_list:
+                inp.change(
+                    fn=update_section_settings,
+                    inputs=[enable_section_controls] + section_input_list,
+                    outputs=[section_settings]
+                )
+        
+        # Connect start button with all inputs
         start_button.click(
             fn=process,
             inputs=[
                 input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization,
-                end_frame_strength
+                end_frame_strength, enable_section_controls, section_settings
             ],
             outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button]
         )
@@ -790,5 +1022,7 @@ def create_ui(models, stream):
             show_progress=False # Optional: hide progress indicator for this load
         )
         # --- End of .load() event handler ---
+        
+        # No need for section status updates anymore
 
     return block

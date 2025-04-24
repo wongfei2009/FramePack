@@ -40,7 +40,7 @@ from diffusers_helper.gradio.progress_bar import make_progress_bar_html
 @torch.no_grad()
 def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
            steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization,
-           end_frame_strength, models, stream, outputs_folder='./outputs/'):
+           end_frame_strength, section_settings=None, models=None, stream=None, outputs_folder='./outputs/'):
     """
     Worker function for generating videos with FramePack.
     
@@ -92,6 +92,23 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
     print(f"Creating output subfolder: {generation_folder}")
 
     stream.output_queue.push(('progress', (None, '', make_progress_bar_html(0, 'Starting ...'))))
+    
+    # Process section settings
+    section_map = None
+    if section_settings is not None and len(section_settings) > 0:
+        section_map = {}
+        for row in section_settings:
+            if row and len(row) >= 3 and row[0] is not None:
+                sec_num = int(row[0])
+                img = row[1]
+                prompt_text = row[2] if row[2] is not None else ""
+                section_map[sec_num] = (img, prompt_text)
+        
+        print(f"Section settings processed: {len(section_map)} sections configured")
+        for sec_num, (img, sec_prompt) in section_map.items():
+            has_img = img is not None
+            has_prompt = sec_prompt is not None and sec_prompt.strip() != ""
+            print(f"  Section {sec_num}: Image: {'✓' if has_img else '✗'}, Prompt: {'✓' if has_prompt else '✗'}")
     
     # Track initial memory usage
     mem_stats = performance_tracker.track_memory("initial")
@@ -214,6 +231,29 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
         if end_frame is not None:
             end_frame_latent = vae_encode(end_frame_pt, models.vae)
             print("End frame encoded successfully")
+        
+        # Process section-specific images if provided
+        section_latents = None
+        if section_map:
+            section_latents = {}
+            for sec_num, (img, _) in section_map.items():
+                if img is not None:
+                    # Preprocess and encode section image
+                    print(f"Processing image for section {sec_num}...")
+                    img_np = resize_and_center_crop(img, target_width=width, target_height=height)
+                    
+                    # Save processed section image
+                    Image.fromarray(img_np).save(os.path.join(generation_folder, f'{job_id}_section_{sec_num}.png'))
+                    
+                    # Convert to PyTorch tensor
+                    img_pt = torch.from_numpy(img_np).float() / 127.5 - 1
+                    img_pt = img_pt.permute(2, 0, 1)[None, :, None]
+                    
+                    # Encode with VAE
+                    section_latents[sec_num] = vae_encode(img_pt, models.vae)
+                    print(f"Section {sec_num} image encoded successfully")
+            
+            print(f"Processed {len(section_latents)}/{len(section_map)} section images")
             
         vae_time = time.time() - vae_start_time
         print(f"VAE encoding completed in {vae_time:.2f} seconds")
@@ -266,12 +306,72 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
         total_generated_latent_frames = 0
 
         # Calculate latent padding sequence
-        latent_paddings = reversed(range(total_latent_sections))
         if total_latent_sections > 4:
             # Use an improved padding sequence for longer videos
             latent_paddings = [3] + [2] * (total_latent_sections - 3) + [1, 0]
+        else:
+            # Convert range to list to avoid iterator issues
+            latent_paddings = list(reversed(range(total_latent_sections)))
 
         # Generate video in progressive sections
+        # Define helper function for getting section-specific prompts
+        def get_section_prompt(i_section, section_map, default_llama_vec, default_clip_pooler, default_mask):
+            """Get section-specific prompt encoding if available"""
+            if not section_map:
+                return default_llama_vec, default_clip_pooler, default_mask
+                
+            # Find the nearest section number <= current section
+            valid_keys = [k for k in section_map.keys() if k <= i_section]
+            if not valid_keys:
+                return default_llama_vec, default_clip_pooler, default_mask
+                
+            # Get the closest previous section
+            use_key = max(valid_keys)
+            _, section_prompt_text = section_map[use_key]
+            
+            # Skip if no prompt or empty
+            if not section_prompt_text or not section_prompt_text.strip():
+                return default_llama_vec, default_clip_pooler, default_mask
+                
+            # Encode section-specific prompt
+            print(f"Using prompt from section {use_key} for section {i_section}")
+            print(f"Section prompt: {section_prompt_text[:50]}...")
+            
+            if not models.high_vram:
+                from diffusers_helper.memory import fake_diffusers_current_device
+                fake_diffusers_current_device(models.text_encoder, gpu)
+                load_model_as_complete(models.text_encoder_2, target_device=gpu)
+                
+            # Encode the section-specific prompt
+            section_llama_vec, section_clip_pooler = encode_prompt_conds(
+                section_prompt_text, models.text_encoder, models.text_encoder_2, 
+                models.tokenizer, models.tokenizer_2
+            )
+            
+            # Process attention mask
+            section_llama_vec, section_mask = crop_or_pad_yield_mask(section_llama_vec, length=512)
+            
+            # Convert to correct dtype
+            section_llama_vec = section_llama_vec.to(models.transformer.dtype)
+            section_clip_pooler = section_clip_pooler.to(models.transformer.dtype)
+            
+            return section_llama_vec, section_clip_pooler, section_mask
+        
+        # Define helper function for getting section-specific latents
+        def get_section_latent(i_section, section_map, section_latents, default_latent):
+            """Get the appropriate latent for the current section"""
+            if not section_map or not section_latents or len(section_latents) == 0:
+                return default_latent
+                
+            # Find the nearest section number <= current section
+            valid_keys = [k for k in section_latents.keys() if k <= i_section]
+            if valid_keys:
+                use_key = max(valid_keys)  # Get the closest previous section
+                print(f"Using image from section {use_key} for section {i_section}")
+                return section_latents[use_key]
+                
+            return default_latent
+        
         # Generate video in progressive sections
         output_filename = None
         for i_section, latent_padding in enumerate(latent_paddings):
@@ -279,6 +379,9 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
             is_last_section = latent_padding == 0
             use_end_latent = is_last_section and end_frame is not None
             latent_padding_size = latent_padding * latent_window_size
+            
+            # Log section information
+            print(f"\n== Processing section {i_section}/{len(latent_paddings)-1} (padding: {latent_padding}) ==")
 
             # Check for user termination
             if stream.input_queue.top() == 'end':
@@ -308,8 +411,16 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
             clean_latent_indices_pre, _, latent_indices, clean_latent_indices_post, clean_latent_2x_indices, clean_latent_4x_indices = indices.split([1, latent_padding_size, latent_window_size, 1, 2, 16], dim=1)
             clean_latent_indices = torch.cat([clean_latent_indices_pre, clean_latent_indices_post], dim=1)
 
-            # Prepare clean latents
-            clean_latents_pre = start_latent.to(history_latents)
+            # Get section-specific latent if available
+            current_latent = get_section_latent(i_section, section_map, section_latents, start_latent)
+            
+            # Get section-specific prompt if available
+            current_llama_vec, current_clip_pooler, current_mask = get_section_prompt(
+                i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask
+            )
+            
+            # Prepare clean latents using the current latent (which might be section-specific)
+            clean_latents_pre = current_latent.to(history_latents)
             clean_latents_post, clean_latents_2x, clean_latents_4x = history_latents[:, :, :1 + 2 + 16, :, :].split([1, 2, 16], dim=2)
             clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
 
@@ -437,9 +548,9 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                 # shift=3.0,
                 num_inference_steps=steps,
                 generator=rnd,
-                prompt_embeds=llama_vec,
-                prompt_embeds_mask=llama_attention_mask,
-                prompt_poolers=clip_l_pooler,
+                prompt_embeds=current_llama_vec,  # Use section-specific prompt
+                prompt_embeds_mask=current_mask,   # Use section-specific mask
+                prompt_poolers=current_clip_pooler,  # Use section-specific pooler
                 negative_prompt_embeds=llama_vec_n,
                 negative_prompt_embeds_mask=llama_attention_mask_n,
                 negative_prompt_poolers=clip_l_pooler_n,
@@ -584,8 +695,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
             print(f"Hit rate: {hit_rate:.2f}%")
         print("-------------------------------------\n")
     
-    # Send completion message with total frames count
+    # Calculate total generation time
+    total_generation_time = time.time() - performance_tracker.get_start_time()
+    
+    # Send completion message with enhanced information
     final_frame_count = int(max(0, total_generated_latent_frames * 4 - 3))
     final_video_length = max(0, (total_generated_latent_frames * 4 - 3) / 24)
-    stream.output_queue.push(('end', (final_frame_count, final_video_length)))
+    stream.output_queue.push(('end', (final_frame_count, final_video_length, total_generation_time, total_latent_sections)))
     return output_filename

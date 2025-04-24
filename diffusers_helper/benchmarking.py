@@ -34,6 +34,10 @@ class PerformanceTracker:
             return elapsed
         return 0
         
+    def get_start_time(self):
+        """Get the time when tracking started"""
+        return self.start_time if self.start_time is not None else time.time()
+        
     def track_memory(self, name=None):
         """Track current GPU memory usage"""
         if torch.cuda.is_available():
