@@ -101,10 +101,9 @@ def make_progress_bar_html(number, text):
           <div class="progress-container">
             <progress value="100" max="100"></progress>
           </div>
-          <span>*text*</span>
         </div>
         '''
-        return completed_html.replace('*text*', text)
+        return completed_html
     else:
         return progress_html.replace('*number*', str(number)).replace('*text*', text)
 

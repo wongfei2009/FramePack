@@ -531,7 +531,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
                     mem_str = ""
                     
                 hint = f'Sampling {current_step}/{steps}{eta_str}{mem_str}'
-                desc = f'Total generated frames: {int(max(0, total_generated_latent_frames * 4 - 3))}, Video length: {max(0, (total_generated_latent_frames * 4 - 3) / 24) :.2f} seconds (FPS-24). The video is being extended now ...'
+                desc = f'Total generated frames: {int(max(0, total_generated_latent_frames * 4 - 3))}, Video length: {max(0, (total_generated_latent_frames * 4 - 3) / 24) :.2f} seconds (FPS-24). The video is extending now...'
                 stream.output_queue.push(('progress', (preview, desc, make_progress_bar_html(percentage, hint))))
 
             # Sample the section
