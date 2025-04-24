@@ -443,6 +443,16 @@ def create_ui(models, stream):
                                 value=params.get("latent_window_size", 9), step=1, 
                                 info="Controls frames per section. For 24 FPS: 7=25 frames (≈1 sec), 9=33 frames (≈1.4 sec), 13=49 frames (≈2 sec). Higher values give better temporal coherence, lower values use less VRAM."
                             )
+                            
+                            # End Frame influence strength slider
+                            gr.HTML("<div class='params-section-title'>END FRAME CONTROL</div>")
+                            
+                            end_frame_strength = gr.Slider(
+                                label="End Frame Influence", 
+                                minimum=0.01, maximum=1.00, 
+                                value=params.get("end_frame_strength", 1.00), step=0.01, 
+                                info="Controls how strongly the end frame influences the video. 1.00 = normal influence, lower values reduce impact."
+                            )
                     
                     # Add buttons at the bottom
                     with gr.Row(elem_classes="settings-buttons-container"):
@@ -468,7 +478,8 @@ def create_ui(models, stream):
         
         # Define process function
         def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-                    steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization):
+                    steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization,
+                    end_frame_strength):
             """
             Process the video generation request.
             
@@ -488,6 +499,7 @@ def create_ui(models, stream):
                 worker, 
                 input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization,
+                end_frame_strength,
                 models, stream
             )
 
@@ -549,7 +561,8 @@ def create_ui(models, stream):
             fn=process,
             inputs=[
                 input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization
+                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization,
+                end_frame_strength
             ],
             outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button]
         )
@@ -583,7 +596,7 @@ def create_ui(models, stream):
         def save_all_parameters(seed_val, total_second_val, resolution_scale_val, 
                                use_teacache_val, teacache_thresh_val, steps_val, gs_val,
                                gpu_memory_val, latent_window_val, enable_optimization_val, mp4_crf_val,
-                               prompt_val, n_prompt_val, cfg_val, rs_val):
+                               prompt_val, n_prompt_val, cfg_val, rs_val, end_frame_strength_val):
             """Save all current parameter values."""
             params_to_save = {
                 "seed": seed_val,
@@ -600,7 +613,8 @@ def create_ui(models, stream):
                 "prompt": prompt_val,
                 "n_prompt": n_prompt_val,
                 "cfg": cfg_val,
-                "rs": rs_val
+                "rs": rs_val,
+                "end_frame_strength": end_frame_strength_val
             }
             
             # Log the parameters we're saving
@@ -636,6 +650,7 @@ def create_ui(models, stream):
                 n_prompt: defaults["n_prompt"],
                 cfg: defaults["cfg"],
                 rs: defaults["rs"],
+                end_frame_strength: defaults["end_frame_strength"],
                 save_status: gr.update(value="✓ Parameters restored to default values", visible=True)
             }
             
@@ -691,7 +706,7 @@ def create_ui(models, stream):
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
                 enable_optimization, mp4_crf, prompt, n_prompt,
-                cfg, rs
+                cfg, rs, end_frame_strength
             ],
             outputs=[save_status]
         )
@@ -714,7 +729,7 @@ def create_ui(models, stream):
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
                 enable_optimization, mp4_crf, prompt, n_prompt,
-                cfg, rs, save_status
+                cfg, rs, end_frame_strength, save_status
             ]
         )
         
@@ -741,7 +756,7 @@ def create_ui(models, stream):
             seed, total_second_length, resolution_scale, use_teacache,
             teacache_thresh, steps, gs, gpu_memory_preservation,
             latent_window_size, enable_optimization, mp4_crf, prompt,
-            n_prompt, cfg, rs
+            n_prompt, cfg, rs, end_frame_strength
         ]
 
         def load_saved_params():
@@ -764,7 +779,8 @@ def create_ui(models, stream):
                 params.get("prompt", ''),
                 params.get("n_prompt", ''),
                 params.get("cfg", 1.0),
-                params.get("rs", 0.0)
+                params.get("rs", 0.0),
+                params.get("end_frame_strength", 1.0)
             ]
 
         block.load(

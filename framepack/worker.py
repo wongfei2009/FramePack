@@ -40,7 +40,7 @@ from diffusers_helper.gradio.progress_bar import make_progress_bar_html
 @torch.no_grad()
 def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
            steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization,
-           models, stream, outputs_folder='./outputs/'):
+           end_frame_strength, models, stream, outputs_folder='./outputs/'):
     """
     Worker function for generating videos with FramePack.
     
@@ -293,7 +293,14 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
             # If we have an end frame and this is the first section, add it to history latents
             if is_first_section and end_frame_latent is not None:
                 print("Adding end frame to history latents for first section")
-                history_latents[:, :, 0:1, :, :] = end_frame_latent
+                # Apply EndFrame influence strength if not default value
+                if end_frame_strength != 1.0:
+                    print(f"Applying EndFrame influence at {end_frame_strength:.2f}x strength")
+                    modified_end_frame_latent = end_frame_latent * end_frame_strength
+                    history_latents[:, :, 0:1, :, :] = modified_end_frame_latent
+                else:
+                    # Normal processing with full influence
+                    history_latents[:, :, 0:1, :, :] = end_frame_latent
 
             # Prepare indices for section generation
             # Prepare indices for section generation
