@@ -528,11 +528,7 @@ def create_ui(models, stream):
                         )
                 
                 # Fixed generation panel at bottom
-                with gr.Row(elem_id="generation-panel"):
-                    with gr.Column(scale=1):
-                        # Status indicators
-                        generation_status = gr.Markdown("Ready to generate")
-                    
+                with gr.Row(elem_id="generation-panel"):                                    
                     with gr.Column(scale=1):
                         # Generation controls
                         with gr.Row():
@@ -742,7 +738,7 @@ def create_ui(models, stream):
 Video generation process has finished successfully."""
                     
                     # Pass completion message to UI with completed progress bar
-                    completed_progress_bar = make_progress_bar_html(100, "")
+                    completed_progress_bar = make_progress_bar_html(100, "Generation completed!")
                     yield output_filename, gr.update(visible=False), completion_desc, completed_progress_bar, gr.update(interactive=True), gr.update(interactive=False)
                     break
                 
@@ -903,7 +899,7 @@ Video generation process has finished successfully."""
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
                 enable_optimization, mp4_crf, prompt, n_prompt,
-                cfg, rs, save_status
+                cfg, rs, end_frame_strength, save_status
             ],
             show_progress=False
         )
