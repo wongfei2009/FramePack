@@ -631,8 +631,8 @@ def create_ui(models, stream):
                             end_frame_strength = gr.Slider(
                                 label="End Frame Influence", 
                                 minimum=0.01, maximum=1.00, 
-                                value=params.get("end_frame_strength", 1.00), step=0.01, 
-                                info="Controls how strongly the end frame influences the video. 1.00 = normal influence, lower values reduce impact."
+                                value=params.get("end_frame_strength", 0.50), step=0.01, 
+                                info="Controls how strongly the end frame influences the video. Lower values reduce impact."
                             )
                     
                     # Add buttons at the bottom
