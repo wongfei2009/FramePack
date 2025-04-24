@@ -205,7 +205,7 @@ class FramePackModels:
             self.vae.to(gpu)
             self.transformer.to(gpu)
 
-    def prepare_for_inference(self, gpu_memory_preservation, use_teacache, steps, rel_l1_thresh=0.15, enable_optimization=False):
+    def prepare_for_inference(self, gpu_memory_preservation, use_teacache, steps, rel_l1_thresh=0.15):
         """
         Prepare models for inference.
         
@@ -256,9 +256,6 @@ class FramePackModels:
             self.transformer.initialize_teacache(enable_teacache=False)
             print("TeaCache disabled as per user request")
             
-        # Apply additional inference optimizations
-        optimize_for_inference(self.transformer, high_vram=self.high_vram, enable_optimization=enable_optimization)
-        if enable_optimization:
-            print("PyTorch optimization enabled")
-        else:
-            print("PyTorch optimization disabled")
+        # Apply additional inference optimizations with optimization disabled
+        optimize_for_inference(self.transformer, high_vram=self.high_vram, enable_optimization=False)
+        print("PyTorch optimization disabled")

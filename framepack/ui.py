@@ -561,11 +561,7 @@ def create_ui(models, stream):
                                 info='Controls cache reuse frequency. Higher values = faster generation but potential quality loss. Lower values = slower but higher quality.'
                             )
                             
-                            enable_optimization = gr.Checkbox(
-                                label='Enable PyTorch Optimization', 
-                                value=params.get("enable_optimization", False), 
-                                info='Enables efficient attention and BFloat16 optimizations.'
-                            )
+
                             
                             gpu_memory_preservation = gr.Slider(
                                 label="GPU Inference Preserved Memory (GB)", 
@@ -659,7 +655,7 @@ def create_ui(models, stream):
         
         # Define process function
         def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-                    steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization,
+                    steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
                     end_frame_strength, enable_section_controls, section_settings=None):
             """
             Process the video generation request.
@@ -685,7 +681,7 @@ def create_ui(models, stream):
             async_run(
                 worker, 
                 input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization,
+                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
                 end_frame_strength, processed_section_settings,
                 models, stream
             )
@@ -789,7 +785,7 @@ Video generation process has finished successfully."""
             fn=process,
             inputs=[
                 input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization,
+                steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
                 end_frame_strength, enable_section_controls, section_settings
             ],
             outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button]
@@ -823,7 +819,7 @@ Video generation process has finished successfully."""
         # Function to save all parameters at once
         def save_all_parameters(seed_val, total_second_val, resolution_scale_val, 
                                use_teacache_val, teacache_thresh_val, steps_val, gs_val,
-                               gpu_memory_val, latent_window_val, enable_optimization_val, mp4_crf_val,
+                               gpu_memory_val, latent_window_val, mp4_crf_val,
                                prompt_val, n_prompt_val, cfg_val, rs_val, end_frame_strength_val):
             """Save all current parameter values."""
             params_to_save = {
@@ -836,7 +832,6 @@ Video generation process has finished successfully."""
                 "gs": gs_val,
                 "gpu_memory_preservation": gpu_memory_val,
                 "latent_window_size": latent_window_val,
-                "enable_optimization": enable_optimization_val,
                 "mp4_crf": mp4_crf_val,
                 "prompt": prompt_val,
                 "n_prompt": n_prompt_val,
@@ -872,7 +867,6 @@ Video generation process has finished successfully."""
                 gs: defaults["gs"],
                 gpu_memory_preservation: defaults["gpu_memory_preservation"],
                 latent_window_size: defaults["latent_window_size"],
-                enable_optimization: defaults["enable_optimization"],
                 mp4_crf: defaults["mp4_crf"],
                 prompt: defaults["prompt"],
                 n_prompt: defaults["n_prompt"],
@@ -898,7 +892,7 @@ Video generation process has finished successfully."""
                 seed, total_second_length, resolution_scale,
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
-                enable_optimization, mp4_crf, prompt, n_prompt,
+                mp4_crf, prompt, n_prompt,
                 cfg, rs, end_frame_strength, save_status
             ],
             show_progress=False
@@ -933,7 +927,7 @@ Video generation process has finished successfully."""
                 seed, total_second_length, resolution_scale,
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
-                enable_optimization, mp4_crf, prompt, n_prompt,
+                mp4_crf, prompt, n_prompt,
                 cfg, rs, end_frame_strength
             ],
             outputs=[save_status]
@@ -956,7 +950,7 @@ Video generation process has finished successfully."""
                 seed, total_second_length, resolution_scale,
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
-                enable_optimization, mp4_crf, prompt, n_prompt,
+                mp4_crf, prompt, n_prompt,
                 cfg, rs, end_frame_strength, save_status
             ]
         )
@@ -983,7 +977,7 @@ Video generation process has finished successfully."""
         components_to_load = [
             seed, total_second_length, resolution_scale, use_teacache,
             teacache_thresh, steps, gs, gpu_memory_preservation,
-            latent_window_size, enable_optimization, mp4_crf, prompt,
+            latent_window_size, mp4_crf, prompt,
             n_prompt, cfg, rs, end_frame_strength
         ]
 
@@ -1002,7 +996,6 @@ Video generation process has finished successfully."""
                 params.get("gs", 10.0),
                 params.get("gpu_memory_preservation", 6),
                 params.get("latent_window_size", 9),
-                params.get("enable_optimization", False),
                 params.get("mp4_crf", 16),
                 params.get("prompt", ''),
                 params.get("n_prompt", ''),

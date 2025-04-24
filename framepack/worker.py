@@ -39,7 +39,7 @@ from diffusers_helper.gradio.progress_bar import make_progress_bar_html
 @torch.no_grad()
 @torch.no_grad()
 def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
-           steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf, enable_optimization,
+           steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
            end_frame_strength, section_settings=None, models=None, stream=None, outputs_folder='./outputs/'):
     """
     Worker function for generating videos with FramePack.
@@ -424,8 +424,8 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
             clean_latents_post, clean_latents_2x, clean_latents_4x = history_latents[:, :, :1 + 2 + 16, :, :].split([1, 2, 16], dim=2)
             clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
 
-            # Prepare model for inference with custom threshold and optimization setting
-            models.prepare_for_inference(gpu_memory_preservation, use_teacache, steps, thresh_value, enable_optimization)
+            # Prepare model for inference with custom threshold
+            models.prepare_for_inference(gpu_memory_preservation, use_teacache, steps, thresh_value)
             
             # Track memory before sampling
             performance_tracker.track_memory("before_sampling")
