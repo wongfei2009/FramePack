@@ -582,8 +582,8 @@ def create_ui(models, stream):
                         
                         # Right column
                         with gr.Column():
-                            # Generation quality settings in right column - use HTML instead of Markdown
-                            gr.HTML("<div class='params-section-title'>GENERATION QUALITY</div>")
+                            # Generation settings in right column - use HTML instead of Markdown
+                            gr.HTML("<div class='params-section-title'>GENERATION</div>")
                             
                             # Generation parameters
                             steps = gr.Slider(
@@ -620,9 +620,6 @@ def create_ui(models, stream):
                                 value=params.get("latent_window_size", 9), step=1, 
                                 info="Controls frames per section. For 24 FPS: 7=25 frames (≈1 sec), 9=33 frames (≈1.4 sec), 13=49 frames (≈2 sec). Higher values give better temporal coherence, lower values use less VRAM."
                             )
-                            
-                            # End Frame influence strength slider
-                            gr.HTML("<div class='params-section-title'>END FRAME CONTROL</div>")
                             
                             end_frame_strength = gr.Slider(
                                 label="End Frame Influence", 
