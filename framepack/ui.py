@@ -504,7 +504,7 @@ def create_ui(models, stream):
         box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
     }
     .generation-info {
-        background-color: rgba(0,0,0,0.03);
+        background-color: none;
         border-radius: 5px;
         padding: 10px;
         margin: 10px 0;
