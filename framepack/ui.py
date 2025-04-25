@@ -65,7 +65,79 @@ def create_ui(models, stream):
     .info-text {
         font-size: 0.9em;
         color: #666;
-        margin: 5px 0;
+        margin: 6px 0;
+        padding-left: 8px;
+        border-left: 3px solid #0d6efd;
+        line-height: 1.5;
+        display: block;
+        border-radius: 0;
+        background: transparent !important; /* Force transparent background */
+    }
+    
+    /* Specific alignment for latent window info */
+    .compact-slider .gr-markdown.info-text {
+        margin-top: 0;
+        padding-top: 0;
+        margin-left: 2px;
+    }
+    
+    /* Override any potential default Gradio styling for info-text containers */
+    .info-text-container, 
+    .info-text-container > div,
+    div:has(> .info-text) {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    /* Special styling for the latent window info */
+    .latent-window-info {
+        margin-top: 0 !important;
+        margin-bottom: 15px !important;
+        background: transparent !important;
+        border-left-color: #0d6efd !important;
+        padding-left: 8px !important;
+    }
+    
+    /* Ensure the parent container of the latent window info has no background */
+    div:has(> .latent-window-info),
+    div:has(> div > .latent-window-info) {
+        background: transparent !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    /* Style for total sections info */
+    .total-sections-info {
+        margin-top: 0 !important;
+        margin-bottom: 10px !important;
+        background: transparent !important;
+        border-left-color: #fd7e14 !important; /* Different color to distinguish */
+    }
+    
+    /* Ensure parent containers have no background */
+    div:has(> .total-sections-info),
+    div:has(> div > .total-sections-info) {
+        background: transparent !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    /* Remove grey background from all markdown elements in the UI */
+    .gr-markdown, 
+    .gr-markdown-container,
+    div:has(> .gr-markdown) {
+        background: transparent !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+    
+    /* Ensure proper padding for all info-text elements */
+    .gr-markdown.info-text {
+        padding-left: 8px !important;
+        padding-right: 0 !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
     }
     .full-width-row {
         width: 100%;
@@ -466,7 +538,7 @@ def create_ui(models, stream):
                                             params.get("latent_window_size", 9), 
                                             params.get("total_latent_sections", 3)
                                         ),
-                                        elem_classes="info-text"
+                                        elem_classes="info-text total-sections-info"
                                     )
                                 
                                 # Function to update the displayed info
@@ -665,7 +737,7 @@ def create_ui(models, stream):
                                 
                                 latent_window_info = gr.Markdown(
                                     calc_frames_per_section(params.get("latent_window_size", 9)),
-                                    elem_classes="info-text"
+                                    elem_classes="info-text latent-window-info"
                                 )
                             
                             # Function to update the displayed info
