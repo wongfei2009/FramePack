@@ -436,10 +436,11 @@ def create_ui(models, stream):
                                 random_seed_btn = gr.Button("🎲 Random Seed", variant="secondary", size="sm", elem_classes="seed-button")
                             
                             with gr.Column(scale=1):
-                                total_second_length = gr.Slider(
-                                    label="Video Length (Seconds)", 
-                                    minimum=1, maximum=120, 
-                                    value=params.get("total_second_length", 5), step=0.1
+                                total_latent_sections = gr.Slider(
+                                    label="Number of Sections", 
+                                    minimum=1, maximum=20, 
+                                    value=params.get("total_latent_sections", 3), step=1,
+                                    info="Each section is approximately 33 frames (1.4 seconds at 24fps)"
                                 )
                         
                         # Resolution scale selection
@@ -651,7 +652,7 @@ def create_ui(models, stream):
                     save_status = gr.Markdown("", visible=False)                    
         
         # Define process function
-        def process(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
+        def process(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                     steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
                     end_frame_strength, enable_section_controls, section_settings=None):
             """
@@ -677,7 +678,7 @@ def create_ui(models, stream):
             # Start the worker in a separate thread
             async_run(
                 worker, 
-                input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
+                input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
                 end_frame_strength, processed_section_settings,
                 models, stream
@@ -781,7 +782,7 @@ Video generation process has finished successfully."""
         start_button.click(
             fn=process,
             inputs=[
-                input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
+                input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
                 end_frame_strength, enable_section_controls, section_settings
             ],
@@ -814,14 +815,14 @@ Video generation process has finished successfully."""
             return random_seed_val
         
         # Function to save all parameters at once
-        def save_all_parameters(seed_val, total_second_val, resolution_scale_val, 
+        def save_all_parameters(seed_val, total_latent_sections_val, resolution_scale_val, 
                                use_teacache_val, teacache_thresh_val, steps_val, gs_val,
                                gpu_memory_val, latent_window_val, mp4_crf_val,
                                prompt_val, n_prompt_val, cfg_val, rs_val, end_frame_strength_val):
             """Save all current parameter values."""
             params_to_save = {
                 "seed": seed_val,
-                "total_second_length": total_second_val,
+                "total_latent_sections": total_latent_sections_val,
                 "resolution_scale": resolution_scale_val,
                 "use_teacache": use_teacache_val,
                 "teacache_thresh": teacache_thresh_val,
@@ -856,7 +857,7 @@ Video generation process has finished successfully."""
             # Return values for UI components with status message
             return {
                 seed: defaults["seed"],
-                total_second_length: defaults["total_second_length"],
+                total_latent_sections: defaults["total_latent_sections"],
                 resolution_scale: defaults["resolution_scale"],
                 use_teacache: defaults["use_teacache"],
                 teacache_thresh: defaults["teacache_thresh"],
@@ -886,7 +887,7 @@ Video generation process has finished successfully."""
             fn=reset_with_message,
             inputs=[],
             outputs=[
-                seed, total_second_length, resolution_scale,
+                seed, total_latent_sections, resolution_scale,
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
                 mp4_crf, prompt, n_prompt,
@@ -921,7 +922,7 @@ Video generation process has finished successfully."""
         save_button.click(
             fn=save_all_parameters,
             inputs=[
-                seed, total_second_length, resolution_scale,
+                seed, total_latent_sections, resolution_scale,
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
                 mp4_crf, prompt, n_prompt,
@@ -944,7 +945,7 @@ Video generation process has finished successfully."""
             fn=reset_with_message,
             inputs=[],
             outputs=[
-                seed, total_second_length, resolution_scale,
+                seed, total_latent_sections, resolution_scale,
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
                 mp4_crf, prompt, n_prompt,
@@ -972,7 +973,7 @@ Video generation process has finished successfully."""
         # --- Add the .load() event handler ---
         # List ALL components whose values should be loaded from parameters.json on refresh
         components_to_load = [
-            seed, total_second_length, resolution_scale, use_teacache,
+            seed, total_latent_sections, resolution_scale, use_teacache,
             teacache_thresh, steps, gs, gpu_memory_preservation,
             latent_window_size, mp4_crf, prompt,
             n_prompt, cfg, rs, end_frame_strength
@@ -985,7 +986,7 @@ Video generation process has finished successfully."""
             # Return values in the *exact same order* as components_to_load list
             return [
                 params.get("seed", 31337),
-                params.get("total_second_length", 5),
+                params.get("total_latent_sections", 3),
                 params.get("resolution_scale", "Full (1x)"),
                 params.get("use_teacache", True),
                 params.get("teacache_thresh", 0.15),

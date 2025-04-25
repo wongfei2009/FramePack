@@ -19,7 +19,7 @@ from framepack.config.modes.video_mode_settings import MODE_TYPE_NORMAL
 DEFAULT_PARAMETERS = {
     # Basic parameters
     "seed": 31337,
-    "total_second_length": 5.0,
+    "total_latent_sections": 3,
     "resolution_scale": "Full (1x)",
     
     # Mode settings

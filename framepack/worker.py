@@ -38,7 +38,7 @@ from diffusers_helper.gradio.progress_bar import make_progress_bar_html
 
 @torch.no_grad()
 @torch.no_grad()
-def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, latent_window_size, 
+def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
            steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
            end_frame_strength, section_settings=None, models=None, stream=None, outputs_folder='./outputs/'):
     """
@@ -49,7 +49,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
         prompt: Text prompt for generation
         n_prompt: Negative prompt
         seed: Random seed
-        total_second_length: Desired video length in seconds
+        total_latent_sections: Number of sections to generate (instead of video length in seconds)
         latent_window_size: Size of latent window
         steps: Number of denoising steps
         cfg: CFG scale
@@ -81,9 +81,8 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_second_length, 
     performance_tracker.reset()
     performance_tracker.start_timer()
     
-    # Calculate number of latent sections
-    total_latent_sections = (total_second_length * 24) / (latent_window_size * 4)
-    total_latent_sections = int(max(round(total_latent_sections), 1))
+    # Use the directly specified number of latent sections
+    total_latent_sections = int(max(total_latent_sections, 1))
 
     # Generate job ID and create subfolder for this generation
     generation_folder, job_id = prepare_generation_subfolder(outputs_folder, None)
