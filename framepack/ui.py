@@ -32,14 +32,12 @@ def create_ui(models, stream):
     
     # Helper functions for time formatting
     def format_time(seconds):
-        """Format seconds into a readable time string"""
-        # Simplified format with just 2 decimal places
+        """Format seconds into a compact time string"""
         if seconds < 60:
-            return f"{seconds:.2f}s"
+            return f"{seconds:.1f}s"
         minutes = int(seconds // 60)
         secs = seconds % 60
-        # Show seconds with 2 decimal places
-        return f"{minutes}m {secs:.2f}s"
+        return f"{minutes}m{secs:.1f}s"
     
     # Function to calculate section timing information
     def calc_section_timing(section_index, latent_window_size):
@@ -47,7 +45,7 @@ def create_ui(models, stream):
         frames_per_section = latent_window_size * 4 - 3
         start_time = (section_index * frames_per_section) / 24  # In seconds
         end_time = ((section_index + 1) * frames_per_section - 1) / 24  # In seconds
-        return f"Time Range: {format_time(start_time)} - {format_time(end_time)}"
+        return f"{format_time(start_time)} - {format_time(end_time)}"
     
     # Define sample prompts
     quick_prompts = [
@@ -278,6 +276,31 @@ def create_ui(models, stream):
         box-shadow: none !important;
     }
     
+    /* Fix for double rectangle issue in section timing */
+    .section-timing-info {
+        position: relative !important;
+        z-index: 1 !important;
+    }
+    
+    /* Target any potential nested elements within timing info */
+    .section-timing-info > div,
+    .section-timing-info > p,
+    .section-timing-info .gr-markdown,
+    div:has(> .section-timing-info) .gr-markdown-container {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    /* Ensure no nested backgrounds in markdown containers */
+    .gr-markdown-container .gr-markdown {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
     /* Ensure proper padding for all info-text elements */
     .gr-markdown.info-text {
         padding-left: 8px !important;
@@ -302,6 +325,44 @@ def create_ui(models, stream):
         font-size: 0.9em;
         color: #666;
         margin: 5px 0;
+    }
+    
+    /* Additional styling for time range - ensure no double rectangles */
+    .section-timing-info,
+    div.gr-markdown.section-timing-info,
+    div.section-timing-info > .gr-markdown,
+    div:has(> .section-timing-info) > .gr-markdown,
+    .gr-markdown.section-timing-info,
+    .gr-markdown-container.section-timing-info,
+    div:has(> .section-timing-info) .gr-markdown-container {
+        margin: 0 0 8px 0 !important;
+        padding: 4px 8px !important;
+        font-size: 0.85em !important;
+        color: #4b5563 !important;
+        background-color: #f0f4f8 !important;
+        border-radius: 4px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+        border: none !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+        position: relative !important;
+        z-index: 1 !important;
+        line-height: 1.4 !important;
+        width: auto !important;
+        overflow: visible !important;
+    }
+    
+    /* Fix any container issues */
+    div:has(> .section-timing-info),
+    div.section-timing-info,
+    div:has(> div > .section-timing-info) {
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        margin-bottom: 8px !important;
+        box-shadow: none !important;
+        width: auto !important;
+        display: block !important;
     }
     
     /* Improved styles for section controls */
@@ -408,15 +469,16 @@ def create_ui(models, stream):
     }
     
     .section-timing-info {
-        margin: 0 0 12px 0 !important;
-        padding: 6px 10px !important;
-        font-size: 0.9em !important;
+        margin: 0 0 8px 0 !important;
+        padding: 4px 8px !important;
+        font-size: 0.85em !important;
         color: #4b5563 !important;
-        background-color: #f3f4f6 !important;
-        border-radius: 6px !important;
+        background-color: #f0f4f8 !important;
+        border-radius: 4px !important;
         display: inline-block !important;
         font-weight: 500 !important;
-        border-left: 3px solid #3b82f6 !important;
+        border: none !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
     }
     .generation-info {
         background-color: rgba(0,0,0,0.03);
