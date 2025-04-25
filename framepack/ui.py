@@ -189,6 +189,29 @@ def create_ui(models, stream):
         padding: 15px !important;
         margin: 0 0 20px 0 !important;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+        position: relative !important;
+        z-index: 1 !important;
+    }
+    
+    /* Fix for the double rectangle issue - ensure all child elements are transparent */
+    .section-info-guide > div,
+    .section-info-guide > p,
+    .section-info-guide .gr-markdown,
+    .section-info-guide .gr-markdown-container {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    /* Fix any container elements */
+    div:has(> .section-info-guide),
+    div:has(> div > .section-info-guide) {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
     }
     
     .section-info-guide h3 {
@@ -651,10 +674,10 @@ def create_ui(models, stream):
                             end_frame = gr.Image(sources='upload', type="numpy", label="Final Frame (Optional)", height=320)
                         
                         # Section Controls right after the input images with better styling
-                        with gr.Accordion("📋 Section Controls", open=False, elem_classes="section-controls-accordion"):
+                        with gr.Accordion("Section Controls", open=False, elem_classes="section-controls-accordion"):
                             # Top explanation and checkbox to enable section controls
                             enable_section_controls = gr.Checkbox(
-                                label="Enable Section Controls", 
+                                label="Enable", 
                                 value=False,
                                 info="When enabled, you can specify different images and prompts for different sections of your video."
                             )
@@ -664,20 +687,21 @@ def create_ui(models, stream):
                                 frames_per_section = latent_window_size * 4 - 3
                                 seconds_per_section = frames_per_section / 24
                                 return f"""
-                                ### Section Controls Guide
+                                <h3>Section Controls Guide</h3>
                                 
-                                Each section represents approximately **{frames_per_section} frames** (≈{seconds_per_section:.2f} seconds at 24fps) of your generated video.
+                                <p>Each section represents approximately <strong>{frames_per_section} frames</strong> (≈{seconds_per_section:.2f} seconds at 24fps) of your generated video.</p>
                                 
-                                **Key points:**
-                                - Customize each section with its own prompt and/or reference image
-                                - Empty sections will use settings from the previous section
-                                - First section uses the main prompt/image if not specified
+                                <p><strong>Key points:</strong></p>
+                                <ul>
+                                    <li>Customize each section with its own prompt and/or reference image</li>
+                                    <li>Empty sections will use settings from the previous section</li>
+                                    <li>First section uses the main prompt/image if not specified</li>
+                                </ul>
                                 """
                             
-                            # Add a Markdown element with improved styling
-                            section_info_md = gr.Markdown(
-                                calc_section_info_text(params.get("latent_window_size", 9)),
-                                elem_classes="section-info-guide"
+                            # Add a Markdown element with improved styling, using HTML to avoid double rectangle issue
+                            section_info_md = gr.HTML(
+                                f'<div class="section-info-guide">{calc_section_info_text(params.get("latent_window_size", 9))}</div>'
                             )
                             
                             # Function to collect section settings
@@ -716,11 +740,10 @@ def create_ui(models, stream):
                                             # Create sections for this tab
                                             for i in range(start_idx, end_idx):
                                                 with gr.Group(elem_classes="section-box"):                                                                                                        
-                                                    # Time range as regular text at the top
+                                                    # Time range as regular text at the top, using HTML instead of Markdown
                                                     current_latent_size = params.get("latent_window_size", 9)
-                                                    timing_info = gr.Markdown(
-                                                        calc_section_timing(i, current_latent_size),
-                                                        elem_classes="section-timing-info"
+                                                    timing_info = gr.HTML(
+                                                        f'<div class="section-timing-info">{calc_section_timing(i, current_latent_size)}</div>'
                                                     )
                                                     
                                                     # Store timing_info references to update later
@@ -811,17 +834,13 @@ def create_ui(models, stream):
                                         info="Choose number of sections to generate"
                                     )
                                     
-                                    total_sections_info = gr.Markdown(
-                                        calc_total_video_info(
-                                            params.get("latent_window_size", 9), 
-                                            params.get("total_latent_sections", 3)
-                                        ),
-                                        elem_classes="info-text total-sections-info"
+                                    total_sections_info = gr.HTML(
+                                        f'<div class="info-text total-sections-info">{calc_total_video_info(params.get("latent_window_size", 9), params.get("total_latent_sections", 3))}</div>'
                                     )
                                 
                                 # Function to update the displayed info
                                 def update_total_sections_info(latent_window_size, total_sections):
-                                    return calc_total_video_info(latent_window_size, total_sections)
+                                    return f'<div class="info-text total-sections-info">{calc_total_video_info(latent_window_size, total_sections)}</div>'
                         
                         # Resolution scale selection
                         resolution_scale = gr.Radio(
@@ -1013,15 +1032,14 @@ def create_ui(models, stream):
                                     info="Controls frames per section. Higher values give better temporal coherence but use more VRAM."
                                 )
                                 
-                                latent_window_info = gr.Markdown(
-                                    calc_frames_per_section(params.get("latent_window_size", 9)),
-                                    elem_classes="info-text latent-window-info"
+                                latent_window_info = gr.HTML(
+                                    f'<div class="info-text latent-window-info">{calc_frames_per_section(params.get("latent_window_size", 9))}</div>'
                                 )
                             
                             # Function to update the displayed info
                             def update_latent_window_info(value):
                                 info_text = calc_frames_per_section(value)
-                                return info_text
+                                return f'<div class="info-text latent-window-info">{info_text}</div>'
                             
                             # This change event is now handled in the connections section
                             
@@ -1287,8 +1305,12 @@ Video generation process has finished successfully."""
         
         # Connect sliders to update the dynamic info displays
         if 'section_info_md' in locals():
+            # Update the HTML content when latent window size changes
+            def update_section_info_html(latent_size):
+                return f'<div class="section-info-guide">{calc_section_info_text(latent_size)}</div>'
+                
             latent_window_size.change(
-                fn=calc_section_info_text,
+                fn=update_section_info_html,
                 inputs=[latent_window_size],
                 outputs=[section_info_md],
                 show_progress=False
@@ -1316,7 +1338,7 @@ Video generation process has finished successfully."""
                 """Update all section timing displays with the new latent window size"""
                 results = []
                 for section_idx, _ in section_timing_displays:
-                    results.append(calc_section_timing(section_idx, latent_size))
+                    results.append(f'<div class="section-timing-info">{calc_section_timing(section_idx, latent_size)}</div>')
                 return results
             
             # Connect section timing update function
