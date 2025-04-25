@@ -264,23 +264,20 @@ def create_ui(models, stream):
                                 info="When enabled, you can specify different images and prompts for different sections of your video."
                             )
                             
-                            # Static base description with dynamic part to be updated
-                            gr.Markdown("""
-                            Define specific images and prompts for different sections of your video:
-                            - Section 0 starts at the beginning of the video
-                            - If a section has no specific image/prompt, it will use the previous section's settings
-                            """)
-                            
-                            # Function to calculate section info text based on latent window size
+                            # Function to calculate full section info text
                             def calc_section_info_text(latent_window_size):
                                 frames_per_section = latent_window_size * 4 - 3
                                 seconds_per_section = frames_per_section / 24
-                                return f"- Each section corresponds to {frames_per_section} frames ({seconds_per_section:.1f} seconds at 24fps)"
+                                return f"""
+                                Define specific images and prompts for different sections of your video:
+                                - Each section corresponds to {frames_per_section} frames ({seconds_per_section:.1f} seconds at 24fps)
+                                - Section 0 starts at the beginning of the video
+                                - If a section has no specific image/prompt, it will use the previous section's settings
+                                """
                             
-                            # Add a separate Markdown element just for the dynamic part
+                            # Add a Markdown element with the full text
                             section_info_md = gr.Markdown(
-                                calc_section_info_text(params.get("latent_window_size", 9)), 
-                                elem_classes="info-text"
+                                calc_section_info_text(params.get("latent_window_size", 9))
                             )
                             
                             # Function to collect section settings
@@ -448,29 +445,27 @@ def create_ui(models, stream):
                                 random_seed_btn = gr.Button("🎲 Random Seed", variant="secondary", size="sm", elem_classes="seed-button")
                             
                             with gr.Column(scale=1):
-                                # Basic slider with static info
-                                total_latent_sections = gr.Slider(
-                                    label="Number of Sections", 
-                                    minimum=1, maximum=20, 
-                                    value=params.get("total_latent_sections", 3), step=1,
-                                    info="Choose number of sections to generate"
-                                )
-                                
                                 # Function to calculate total video length info
                                 def calc_total_video_info(latent_window_size, total_sections):
                                     frames_per_section = latent_window_size * 4 - 3
                                     total_frames = total_sections * frames_per_section
                                     total_seconds = total_frames / 24
-                                    return f"{total_sections} sections = {total_frames} frames (≈{total_seconds:.1f} seconds at 24fps)"
+                                    return f"Choose number of sections to generate.\n{total_sections} sections = {total_frames} frames (≈{total_seconds:.1f} seconds at 24fps)"
                                 
-                                # Add a Markdown element to show the dynamic total video info
-                                total_video_info = gr.Markdown(
-                                    calc_total_video_info(
+                                # Use the function directly for the info text
+                                total_latent_sections = gr.Slider(
+                                    label="Number of Sections", 
+                                    minimum=1, maximum=20, 
+                                    value=params.get("total_latent_sections", 3), step=1,
+                                    info=calc_total_video_info(
                                         params.get("latent_window_size", 9), 
                                         params.get("total_latent_sections", 3)
-                                    ),
-                                    elem_classes="info-text"
+                                    )
                                 )
+                                
+                                # Define an update function that returns a component update
+                                def update_total_sections_info(latent_window_size, total_sections):
+                                    return gr.Slider.update(info=calc_total_video_info(latent_window_size, total_sections))
                         
                         # Resolution scale selection
                         resolution_scale = gr.Radio(
@@ -644,33 +639,25 @@ def create_ui(models, stream):
                                 info='Controls the level of CFG re-scaling. Values above 0 can help reduce over-saturation and improve quality at higher CFG values.'
                             )
                             
-                            # We'll use a static description for the slider, and show dynamic info separately
+                            # Calculate frames per section function
+                            def calc_frames_per_section(latent_window_size):
+                                frames_per_section = latent_window_size * 4 - 3
+                                seconds_per_section = frames_per_section / 24
+                                return f"Controls frames per section. Higher values give better temporal coherence but use more VRAM.\nCurrent size: {latent_window_size} = {frames_per_section} frames (≈{seconds_per_section:.1f} sec at 24fps) per section."
+                            
+                            # Use the function directly for the info text
                             latent_window_size = gr.Slider(
                                 label="Latent Window Size", 
                                 minimum=1, maximum=33, 
                                 value=params.get("latent_window_size", 9), step=1, 
-                                info="Controls frames per section. Higher values give better temporal coherence but use more VRAM."
+                                info=calc_frames_per_section(params.get("latent_window_size", 9))
                             )
                             
-                            # Calculate frames per section for initial display
-                            def calc_frames_per_section(latent_window_size):
-                                frames_per_section = latent_window_size * 4 - 3
-                                seconds_per_section = frames_per_section / 24
-                                return f"Current size: {latent_window_size} = {frames_per_section} frames (≈{seconds_per_section:.1f} sec at 24fps) per section."
-                                
-                            # Add a Markdown element to show the dynamic info
-                            latent_window_info = gr.Markdown(
-                                calc_frames_per_section(params.get("latent_window_size", 9)),
-                                elem_classes="info-text"
-                            )
+                            # Define an update function that returns a component update
+                            def update_latent_window_info(value):
+                                return gr.Slider.update(info=calc_frames_per_section(value))
                             
-                            # Update the info text whenever the slider changes
-                            latent_window_size.change(
-                                fn=calc_frames_per_section,
-                                inputs=[latent_window_size],
-                                outputs=[latent_window_info],
-                                show_progress=False
-                            )
+                            # This change event is now handled in the connections section
                             
                             end_frame_strength = gr.Slider(
                                 label="End Frame Influence", 
@@ -941,22 +928,28 @@ Video generation process has finished successfully."""
                 show_progress=False
             )
         
-        if 'total_video_info' in locals():
-            # Update total video info when latent window size changes
-            latent_window_size.change(
-                fn=calc_total_video_info,
-                inputs=[latent_window_size, total_latent_sections],
-                outputs=[total_video_info],
-                show_progress=False
-            )
-            
-            # Update total video info when total sections changes
-            total_latent_sections.change(
-                fn=calc_total_video_info,
-                inputs=[latent_window_size, total_latent_sections],
-                outputs=[total_video_info],
-                show_progress=False
-            )
+        # Update latent window size info when the slider changes
+        latent_window_size.change(
+            fn=update_latent_window_info,
+            inputs=[latent_window_size],
+            outputs=[latent_window_size],
+            show_progress=False
+        )
+        
+        # Update total sections info when either slider changes
+        latent_window_size.change(
+            fn=update_total_sections_info,
+            inputs=[latent_window_size, total_latent_sections],
+            outputs=[total_latent_sections],
+            show_progress=False
+        )
+        
+        total_latent_sections.change(
+            fn=update_total_sections_info,
+            inputs=[latent_window_size, total_latent_sections],
+            outputs=[total_latent_sections],
+            show_progress=False
+        )
         
         # Connect reset button
         reset_button.click(
