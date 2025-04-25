@@ -653,18 +653,7 @@ def create_ui(models, stream):
                                         with gr.TabItem(tab_label):
                                             # Create sections for this tab
                                             for i in range(start_idx, end_idx):
-                                                with gr.Group(elem_classes="section-box"):
-                                                    # Section header with improved visual styling
-                                                    with gr.Row(elem_classes="section-header-row"):
-                                                        with gr.Column(scale=1, min_width=60):
-                                                            gr.HTML(f"""
-                                                            <div class="section-number">
-                                                                <span>{i}</span>
-                                                            </div>
-                                                            """)
-                                                        with gr.Column(scale=10):
-                                                            gr.Markdown(f"### Section {i}", elem_classes="section-header")
-                                                    
+                                                with gr.Group(elem_classes="section-box"):                                                                                                        
                                                     # Time range as regular text at the top
                                                     current_latent_size = params.get("latent_window_size", 9)
                                                     timing_info = gr.Markdown(
@@ -689,7 +678,7 @@ def create_ui(models, stream):
                                                         with gr.Column(scale=6):
                                                             section_prompt = gr.Textbox(
                                                                 label="Section Prompt", 
-                                                                placeholder="Enter section-specific prompt here (optional). If left empty, the main prompt will be used.",
+                                                                placeholder="Enter section-specific prompt here (optional).",
                                                                 lines=6,  # Increased lines for better usability
                                                                 max_lines=12,  # Allow expansion but limit it
                                                                 elem_classes="section-prompt"
