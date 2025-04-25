@@ -398,7 +398,7 @@ def create_ui(models, stream):
                         with gr.Accordion("Section Controls", open=False):
                             # Top explanation and checkbox to enable section controls
                             enable_section_controls = gr.Checkbox(
-                                label="Enable Section-Specific Controls", 
+                                label="Enable", 
                                 value=False,
                                 info="When enabled, you can specify different images and prompts for different sections of your video."
                             )
