@@ -157,6 +157,40 @@ def create_ui(models, stream):
         color: #666;
         margin: 5px 0;
     }
+    
+    /* New styles for improved section controls */
+    .section-box {
+        border: 1px solid #e6e6e6;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 15px;
+        background-color: #f9f9f9;
+    }
+    
+    .section-header {
+        margin: 0 0 10px 0 !important;
+        color: #0d6efd;
+        font-weight: 600;
+    }
+    
+    .section-separator {
+        margin: 10px 0 !important;
+        opacity: 0.5;
+    }
+    
+    .section-tabs .tab-nav {
+        flex-wrap: wrap !important;
+    }
+    
+    .section-tabs .tab-nav button {
+        margin: 2px !important;
+    }
+    
+    .section-number input {
+        background-color: #f0f0f0 !important;
+        color: #666 !important;
+        font-weight: 600 !important;
+    }
     .generation-info {
         background-color: rgba(0,0,0,0.03);
         border-radius: 5px;
@@ -372,117 +406,56 @@ def create_ui(models, stream):
                             # Section settings container - shown/hidden based on checkbox
                             section_controls_group = gr.Group(visible=False)
                             with section_controls_group:
-                                # Create section settings UI with visibility toggles
+                                # Create section settings UI with improved layout
                                 section_inputs = []
-                                max_sections = 5
+                                max_sections = 20  # Pre-define 20 sections as requested
                                 
-                                # First section always visible
-                                with gr.Group():
-                                    with gr.Row():
-                                        with gr.Column(scale=1):
-                                            section_number_1 = gr.Number(
-                                                label=f"Section", 
-                                                value=0,  # 0-based index for actual section
-                                                precision=0
-                                            )
-                                            section_prompt_1 = gr.Textbox(
-                                                label=f"Section Prompt", 
-                                                placeholder="Section-specific prompt (optional)",
-                                                lines=2
-                                            )
+                                # Create a tabbed interface for sections
+                                with gr.Tabs(elem_classes="section-tabs") as section_tabs:
+                                    # Create tabs for sections with 5 sections per tab
+                                    for tab_idx in range((max_sections + 4) // 5):  # Ceiling division to get number of tabs needed
+                                        start_idx = tab_idx * 5
+                                        end_idx = min(start_idx + 5, max_sections)
+                                        tab_label = f"Sections {start_idx}-{end_idx - 1}"
                                         
-                                        with gr.Column(scale=2):
-                                            section_image_1 = gr.Image(
-                                                label=f"Section Image", 
-                                                type="numpy", 
-                                                sources="upload"
-                                            )
-                                    
-                                    section_inputs.append([section_number_1, section_image_1, section_prompt_1])
-                                
-                                # Additional sections that are hidden by default
-                                section_groups = []
-                                
-                                for i in range(2, max_sections + 1):
-                                    with gr.Group(visible=False) as section_group:
-                                        section_groups.append(section_group)
-                                        
-                                        with gr.Row():
-                                            with gr.Column(scale=1):
-                                                section_number = gr.Number(
-                                                    label=f"Section", 
-                                                    value=i-1,  # 0-based index
-                                                    precision=0
-                                                )
-                                                section_prompt = gr.Textbox(
-                                                    label=f"Section Prompt", 
-                                                    placeholder="Section-specific prompt (optional)",
-                                                    lines=2
-                                                )
-                                            
-                                            with gr.Column(scale=2):
-                                                section_image = gr.Image(
-                                                    label=f"Section Image", 
-                                                    type="numpy", 
-                                                    sources="upload"
-                                                )
-                                        
-                                        section_inputs.append([section_number, section_image, section_prompt])
-                                
-                                # Show/hide sections with buttons
-                                with gr.Row():
-                                    add_section_btn = gr.Button("+ Add Section", size="sm")
-                                    remove_section_btn = gr.Button("- Remove Section", size="sm")
-                                
-                                # Track the current number of visible sections
-                                current_sections = gr.State(1)
-                                
-                                # Function to add a section
-                                def add_section(current_count):
-                                    if current_count < max_sections:
-                                        # Make the next section visible
-                                        updates = []
-                                        for i, group in enumerate(section_groups):
-                                            # Make visible if this is the next section to show
-                                            if i == current_count - 1:
-                                                updates.append(gr.update(visible=True))
-                                            else:
-                                                # Keep current visibility for others
-                                                updates.append(gr.update())
-                                        return [current_count + 1] + updates
-                                    return [current_count] + [gr.update() for _ in section_groups]
-                                
-                                # Function to remove a section
-                                def remove_section(current_count):
-                                    if current_count > 1:
-                                        # Hide the last visible section
-                                        updates = []
-                                        for i, group in enumerate(section_groups):
-                                            # Hide if this is the last visible section
-                                            if i == current_count - 2:
-                                                updates.append(gr.update(visible=False))
-                                            else:
-                                                # Keep current visibility for others
-                                                updates.append(gr.update())
-                                        return [current_count - 1] + updates
-                                    return [current_count] + [gr.update() for _ in section_groups]
-                                
-                                # Connect the buttons
-                                add_section_btn.click(
-                                    fn=add_section,
-                                    inputs=[current_sections],
-                                    outputs=[current_sections] + section_groups
-                                )
-                                
-                                remove_section_btn.click(
-                                    fn=remove_section,
-                                    inputs=[current_sections],
-                                    outputs=[current_sections] + section_groups
-                                )
-                            
-                            # The section add/remove functions are now defined above
+                                        with gr.TabItem(tab_label):
+                                            # Create sections for this tab
+                                            for i in range(start_idx, end_idx):
+                                                with gr.Group(elem_classes="section-box"):
+                                                    with gr.Row():
+                                                        with gr.Column(scale=1):
+                                                            # Add header for each section
+                                                            gr.Markdown(f"### Section {i}", elem_classes="section-header")
+                                                    
+                                                    with gr.Row():
+                                                        with gr.Column(scale=1):
+                                                            section_number = gr.Number(
+                                                                label="Section Number", 
+                                                                value=i,  # 0-based index for actual section
+                                                                precision=0,
+                                                                elem_classes="section-number",
+                                                                interactive=False  # Make non-interactive since it's pre-defined
+                                                            )
+                                                            section_prompt = gr.Textbox(
+                                                                label="Section Prompt", 
+                                                                placeholder="Section-specific prompt (optional)",
+                                                                lines=2,
+                                                                elem_classes="section-prompt"
+                                                            )
+                                                        
+                                                        with gr.Column(scale=2):
+                                                            section_image = gr.Image(
+                                                                label="Section Image", 
+                                                                type="numpy", 
+                                                                sources="upload",
+                                                                elem_classes="section-image"
+                                                            )
+                                                    
+                                                    # Add section inputs to the list
+                                                    section_inputs.append([section_number, section_image, section_prompt])
                             
                             # Toggle visibility of section controls based on checkbox
+                            # (No need for add/remove functions since all sections are predefined)
                             enable_section_controls.change(
                                 fn=lambda x: gr.update(visible=x),
                                 inputs=[enable_section_controls],
