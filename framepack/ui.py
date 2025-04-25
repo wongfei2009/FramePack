@@ -71,7 +71,38 @@ def create_ui(models, stream):
         box-shadow: 0 -2px 10px rgba(0,0,0,0.05) !important;
     }
     .tab-content {
-        padding: 15px 0;
+        padding: 20px 0;
+    }
+    
+    /* Main tabs styling */
+    .gradio-tabs {
+        margin-top: 10px !important;
+    }
+    
+    .gradio-tabs .tab-nav {
+        background-color: #f8fafc !important;
+        border-radius: 8px 8px 0 0 !important;
+        padding: 5px 5px 0 5px !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+    }
+    
+    .gradio-tabs .tab-nav button {
+        font-weight: 500 !important;
+        border-radius: 8px 8px 0 0 !important;
+        padding: 10px 20px !important;
+        margin: 0 5px !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    .gradio-tabs .tab-nav button.selected {
+        background-color: white !important;
+        border-bottom: 3px solid #3b82f6 !important;
+        color: #1e40af !important;
+        font-weight: 600 !important;
+    }
+    
+    .gradio-tabs .tab-nav button:not(.selected):hover {
+        background-color: #f1f5f9 !important;
     }
     .action-buttons {
         display: flex;
@@ -126,6 +157,102 @@ def create_ui(models, stream):
         margin: 0 !important;
     }
     
+    /* Custom styling for the section image upload area */
+    .section-image .drop-region {
+        border: 2px dashed #cbd5e1 !important;
+        border-radius: 8px !important;
+        background-color: #f8fafc !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    
+    .section-image .drop-region:hover {
+        border-color: #93c5fd !important;
+        background-color: #f1f5f9 !important;
+    }
+    
+    .section-image .upload-button {
+        background-color: #3b82f6 !important;
+        color: white !important;
+        border-radius: 6px !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    .section-image .upload-button:hover {
+        background-color: #2563eb !important;
+        transform: translateY(-1px) !important;
+    }
+    
+    /* Section info guide styling */
+    .section-info-guide {
+        background-color: #f0f9ff !important;
+        border: 1px solid #bae6fd !important;
+        border-radius: 8px !important;
+        padding: 15px !important;
+        margin: 0 0 20px 0 !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+    }
+    
+    .section-info-guide h3 {
+        color: #0369a1 !important;
+        font-size: 1.1em !important;
+        margin-top: 0 !important;
+        margin-bottom: 10px !important;
+    }
+    
+    .section-info-guide p {
+        margin: 0 0 10px 0 !important;
+    }
+    
+    .section-info-guide ul, .section-info-guide ol {
+        padding-left: 20px !important;
+        margin: 10px 0 !important;
+    }
+    
+    .section-info-guide strong {
+        color: #0369a1 !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Section Controls Accordion Styling */
+    .section-controls-accordion > .label-wrap {
+        background-color: #f8fafc !important;
+        border-radius: 8px !important;
+        padding: 12px 15px !important;
+        margin-bottom: 15px !important;
+        border: 1px solid #e2e8f0 !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    .section-controls-accordion > .label-wrap:hover {
+        background-color: #f1f5f9 !important;
+        border-color: #cbd5e1 !important;
+    }
+    
+    .section-controls-accordion > .label-wrap > .icon-button {
+        color: #3b82f6 !important;
+        background-color: rgba(59, 130, 246, 0.1) !important;
+        border-radius: 6px !important;
+        padding: 5px !important;
+    }
+    
+    .section-controls-accordion > .label-wrap > .label {
+        font-weight: 600 !important;
+        font-size: 1.05em !important;
+        color: #1e40af !important;
+    }
+    
+    /* Checkbox styling */
+    .section-controls-accordion input[type="checkbox"] {
+        transform: scale(1.1) !important;
+        accent-color: #3b82f6 !important;
+    }
+    
+    .section-controls-accordion label.block span {
+        font-weight: 500 !important;
+        color: #1f2937 !important;
+    }
+    
     /* Style for total sections info */
     .total-sections-info {
         margin-top: 0 !important;
@@ -177,25 +304,67 @@ def create_ui(models, stream):
         margin: 5px 0;
     }
     
-    /* New styles for improved section controls */
+    /* Improved styles for section controls */
     .section-box {
         border: 1px solid #eaeaea;
         border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 15px;
-        background-color: white;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        transition: box-shadow 0.2s ease-in-out;
+        padding: 20px;
+        margin-bottom: 20px;
+        background-color: #f9fafe;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        transition: box-shadow 0.3s ease-in-out, transform 0.2s ease;
     }
     
     .section-box:hover {
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        transform: translateY(-2px);
+    }
+    
+    .section-header-row {
+        align-items: center !important;
+        margin-bottom: 10px !important;
+    }
+    
+    .section-number {
+        background-color: #3b82f6;
+        color: white;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1.2em;
+        box-shadow: 0 2px 5px rgba(59, 130, 246, 0.3);
     }
     
     .section-header {
-        margin: 0 0 5px 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
         color: #0d6efd;
         font-weight: 600;
+        font-size: 1.1em !important;
+    }
+    
+    .section-header h3 {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    /* Section prompt styling */
+    .section-prompt textarea {
+        min-height: 100px !important;
+        font-size: 0.95em !important;
+        line-height: 1.5 !important;
+        border-color: #d1d5db !important;
+        border-radius: 8px !important;
+        resize: vertical !important;
+    }
+    
+    .section-prompt textarea:focus {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3) !important;
     }
     
     /* Add some spacing between elements */
@@ -210,19 +379,44 @@ def create_ui(models, stream):
         opacity: 0.5;
     }
     
+    /* Improved section tab navigation */
     .section-tabs .tab-nav {
         flex-wrap: wrap !important;
+        background-color: #f5f7fb !important;
+        border-radius: 8px !important;
+        padding: 6px !important;
+        border: 1px solid #e2e8f0 !important;
+        margin-bottom: 15px !important;
     }
     
     .section-tabs .tab-nav button {
-        margin: 2px !important;
+        margin: 3px !important;
+        border-radius: 6px !important;
+        font-weight: 500 !important;
+        padding: 8px 16px !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    .section-tabs .tab-nav button.selected {
+        background-color: #3b82f6 !important;
+        color: white !important;
+        box-shadow: 0 2px 5px rgba(59, 130, 246, 0.3) !important;
+    }
+    
+    .section-tabs .tab-nav button:not(.selected):hover {
+        background-color: #e2e8f0 !important;
     }
     
     .section-timing-info {
-        margin: 0 0 10px 0 !important;
-        padding: 0 !important;
+        margin: 0 0 12px 0 !important;
+        padding: 6px 10px !important;
         font-size: 0.9em !important;
-        color: #666 !important;
+        color: #4b5563 !important;
+        background-color: #f3f4f6 !important;
+        border-radius: 6px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+        border-left: 3px solid #3b82f6 !important;
     }
     .generation-info {
         background-color: rgba(0,0,0,0.03);
@@ -394,27 +588,34 @@ def create_ui(models, stream):
                             input_image = gr.Image(sources='upload', type="numpy", label="Input Image", height=320)
                             end_frame = gr.Image(sources='upload', type="numpy", label="Final Frame (Optional)", height=320)
                         
-                        # Section Controls right after the input images
-                        with gr.Accordion("Section Controls", open=False):
+                        # Section Controls right after the input images with better styling
+                        with gr.Accordion("📋 Section Controls", open=False, elem_classes="section-controls-accordion"):
                             # Top explanation and checkbox to enable section controls
                             enable_section_controls = gr.Checkbox(
-                                label="Enable", 
+                                label="Enable Section Controls", 
                                 value=False,
                                 info="When enabled, you can specify different images and prompts for different sections of your video."
                             )
                             
-                            # Function to calculate full section info text
+                            # Function to calculate full section info text with more details
                             def calc_section_info_text(latent_window_size):
                                 frames_per_section = latent_window_size * 4 - 3
                                 seconds_per_section = frames_per_section / 24
                                 return f"""
-                                Define specific images and prompts for different sections of your video:                                
-                                - If a section has no specific image/prompt, it will use the previous section's settings
+                                ### Section Controls Guide
+                                
+                                Each section represents approximately **{frames_per_section} frames** (≈{seconds_per_section:.2f} seconds at 24fps) of your generated video.
+                                
+                                **Key points:**
+                                - Customize each section with its own prompt and/or reference image
+                                - Empty sections will use settings from the previous section
+                                - First section uses the main prompt/image if not specified
                                 """
                             
-                            # Add a Markdown element with the full text
+                            # Add a Markdown element with improved styling
                             section_info_md = gr.Markdown(
-                                calc_section_info_text(params.get("latent_window_size", 9))
+                                calc_section_info_text(params.get("latent_window_size", 9)),
+                                elem_classes="section-info-guide"
                             )
                             
                             # Function to collect section settings
@@ -441,7 +642,7 @@ def create_ui(models, stream):
                                 section_inputs = []
                                 max_sections = 20  # Pre-define 20 sections as requested
                                 
-                                # Create a tabbed interface for sections
+                                # Create a tabbed interface for sections with better styling
                                 with gr.Tabs(elem_classes="section-tabs") as section_tabs:
                                     # Create tabs for sections with 5 sections per tab
                                     for tab_idx in range((max_sections + 4) // 5):  # Ceiling division to get number of tabs needed
@@ -453,8 +654,16 @@ def create_ui(models, stream):
                                             # Create sections for this tab
                                             for i in range(start_idx, end_idx):
                                                 with gr.Group(elem_classes="section-box"):
-                                                    # Section header with cleaner styling
-                                                    gr.Markdown(f"### Section {i}", elem_classes="section-header")
+                                                    # Section header with improved visual styling
+                                                    with gr.Row(elem_classes="section-header-row"):
+                                                        with gr.Column(scale=1, min_width=60):
+                                                            gr.HTML(f"""
+                                                            <div class="section-number">
+                                                                <span>{i}</span>
+                                                            </div>
+                                                            """)
+                                                        with gr.Column(scale=10):
+                                                            gr.Markdown(f"### Section {i}", elem_classes="section-header")
                                                     
                                                     # Time range as regular text at the top
                                                     current_latent_size = params.get("latent_window_size", 9)
@@ -474,23 +683,26 @@ def create_ui(models, stream):
                                                         visible=False
                                                     )
                                                 
-                                                    # Main content row with adjusted scales
-                                                    with gr.Row():
-                                                        # Give more space to the prompt (scale 3) vs the image (scale 2)
-                                                        with gr.Column(scale=3):
+                                                    # Main content row with adjusted scales for better usability
+                                                    with gr.Row(equal_height=True):
+                                                        # Give more space to the prompt (scale 6) vs the image (scale 4)
+                                                        with gr.Column(scale=6):
                                                             section_prompt = gr.Textbox(
                                                                 label="Section Prompt", 
-                                                                placeholder="Section-specific prompt (optional)",
-                                                                lines=3,  # Increased lines
+                                                                placeholder="Enter section-specific prompt here (optional). If left empty, the main prompt will be used.",
+                                                                lines=6,  # Increased lines for better usability
+                                                                max_lines=12,  # Allow expansion but limit it
                                                                 elem_classes="section-prompt"
                                                             )
                                                         
-                                                        with gr.Column(scale=2):
+                                                        with gr.Column(scale=4):
                                                             section_image = gr.Image(
                                                                 label="Section Image", 
                                                                 type="numpy", 
                                                                 sources="upload",
-                                                                elem_classes="section-image"
+                                                                elem_classes="section-image",
+                                                                height=180,
+                                                                interactive=True
                                                             )
                                                     
                                                     # Add section inputs to the list
