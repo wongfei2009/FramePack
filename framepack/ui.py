@@ -649,7 +649,7 @@ def create_ui(models, stream):
                             def calc_frames_per_section(latent_window_size):
                                 frames_per_section = latent_window_size * 4 - 3
                                 seconds_per_section = frames_per_section / 24
-                                return f"Controls frames per section. Higher values give better temporal coherence but use more VRAM.\nCurrent size: {latent_window_size} = {frames_per_section} frames (≈{seconds_per_section:.1f} sec at 24fps) per section."
+                                return f"Current size: {latent_window_size} = {frames_per_section} frames (≈{seconds_per_section:.1f} sec at 24fps) per section."
                             
                             # First create a State to store the current info text
                             latent_window_info_state = gr.State(calc_frames_per_section(params.get("latent_window_size", 9)))
