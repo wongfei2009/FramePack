@@ -719,7 +719,22 @@ def create_ui(models, stream):
                             def update_section_settings(enable_controls, *args):
                                 if not enable_controls:
                                     return None
-                                return collect_section_settings(*args)
+                                
+                                section_data = collect_section_settings(*args)
+                                
+                                # Debug output to help track section settings
+                                valid_sections = [s for s in section_data if s[0] is not None and (s[1] is not None or (s[2] is not None and s[2].strip()))]
+                                if valid_sections:
+                                    print(f"Section settings updated: {len(valid_sections)} valid sections")
+                                    for sec in valid_sections:
+                                        sec_num, img, prompt = sec
+                                        has_img = img is not None
+                                        has_prompt = prompt is not None and prompt.strip() != ""
+                                        print(f"  Updated section {sec_num}: Image: {'✓' if has_img else '✗'}, Prompt: {'✓' if has_prompt else '✗'}")
+                                else:
+                                    print("No valid section settings after update")
+                                    
+                                return section_data
                             
                             # Section settings container - shown/hidden based on checkbox
                             section_controls_group = gr.Group(visible=False)
@@ -791,7 +806,8 @@ def create_ui(models, stream):
                             )
                         
                         # Hidden state to store section settings
-                        section_settings = gr.State(None)
+                        # Debug State value for section settings - initialize with empty list
+                        section_settings = gr.State([])
                         
                         # Prompt inputs after section controls
                         prompt = gr.Textbox(label="Prompt", value=params.get("prompt", ''), lines=4)
@@ -1093,8 +1109,25 @@ def create_ui(models, stream):
             # Process section settings if enabled
             processed_section_settings = None
             if enable_section_controls and section_settings is not None:
+                # Debug section settings
                 processed_section_settings = section_settings
-                print(f"Using section-specific settings: {len(processed_section_settings)} sections configured")
+                print(f"Section controls enabled: Using {len(processed_section_settings)} section settings")
+                
+                # Print all sections with their details
+                valid_sections = [s for s in processed_section_settings if s[0] is not None and (s[1] is not None or (s[2] is not None and s[2].strip()))]
+                print(f"Valid section configurations: {len(valid_sections)}")
+                
+                for sec in valid_sections:
+                    sec_num, img, prompt = sec
+                    has_img = img is not None
+                    has_prompt = prompt is not None and prompt.strip() != ""
+                    print(f"  UI: Section {sec_num}: Image: {'✓' if has_img else '✗'}, Prompt: {'✓' if has_prompt else '✗'}")
+                    
+                # If no valid sections were found, log a warning
+                if not valid_sections:
+                    print("WARNING: No valid section configurations found!")
+            else:
+                print(f"Section controls disabled or no section_settings provided. enable_section_controls={enable_section_controls}, section_settings is None: {section_settings is None}")
             
             # Start the worker in a separate thread
             async_run(

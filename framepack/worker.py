@@ -98,16 +98,25 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
         section_map = {}
         for row in section_settings:
             if row and len(row) >= 3 and row[0] is not None:
-                sec_num = int(row[0])
-                img = row[1]
-                prompt_text = row[2] if row[2] is not None else ""
-                section_map[sec_num] = (img, prompt_text)
+                try:
+                    sec_num = int(row[0])
+                    img = row[1]
+                    prompt_text = row[2] if row[2] is not None else ""
+                    
+                    # Only add entries that have a valid section number and either an image or prompt
+                    if sec_num >= 0 and (img is not None or (prompt_text and prompt_text.strip())):
+                        section_map[sec_num] = (img, prompt_text)
+                except (ValueError, TypeError) as e:
+                    print(f"Error processing section row: {e}")
         
         print(f"Section settings processed: {len(section_map)} sections configured")
         for sec_num, (img, sec_prompt) in section_map.items():
             has_img = img is not None
             has_prompt = sec_prompt is not None and sec_prompt.strip() != ""
             print(f"  Section {sec_num}: Image: {'✓' if has_img else '✗'}, Prompt: {'✓' if has_prompt else '✗'}")
+            
+        # Print sorted list of section keys for debugging
+        print(f"  Section keys in order: {sorted(section_map.keys())}")
     
     # Track initial memory usage
     mem_stats = performance_tracker.track_memory("initial")
@@ -237,22 +246,32 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
             section_latents = {}
             for sec_num, (img, _) in section_map.items():
                 if img is not None:
-                    # Preprocess and encode section image
-                    print(f"Processing image for section {sec_num}...")
-                    img_np = resize_and_center_crop(img, target_width=width, target_height=height)
-                    
-                    # Save processed section image
-                    Image.fromarray(img_np).save(os.path.join(generation_folder, f'{job_id}_section_{sec_num}.png'))
-                    
-                    # Convert to PyTorch tensor
-                    img_pt = torch.from_numpy(img_np).float() / 127.5 - 1
-                    img_pt = img_pt.permute(2, 0, 1)[None, :, None]
-                    
-                    # Encode with VAE
-                    section_latents[sec_num] = vae_encode(img_pt, models.vae)
-                    print(f"Section {sec_num} image encoded successfully")
+                    try:
+                        # Preprocess and encode section image
+                        print(f"Processing image for section {sec_num}...")
+                        img_np = resize_and_center_crop(img, target_width=width, target_height=height)
+                        
+                        # Save processed section image
+                        Image.fromarray(img_np).save(os.path.join(generation_folder, f'{job_id}_section_{sec_num}.png'))
+                        
+                        # Convert to PyTorch tensor
+                        img_pt = torch.from_numpy(img_np).float() / 127.5 - 1
+                        img_pt = img_pt.permute(2, 0, 1)[None, :, None]
+                        
+                        # Encode with VAE
+                        latent = vae_encode(img_pt, models.vae)
+                        section_latents[sec_num] = latent
+                        print(f"Section {sec_num} image encoded successfully")
+                        print(f"  - Latent shape: {latent.shape}")
+                        print(f"  - Value range: min={latent.min().item():.4f}, max={latent.max().item():.4f}, mean={latent.mean().item():.4f}")
+                    except Exception as e:
+                        print(f"Error encoding section {sec_num} image: {e}")
             
-            print(f"Processed {len(section_latents)}/{len(section_map)} section images")
+            if section_latents:
+                print(f"Processed {len(section_latents)}/{len(section_map)} section images")
+                print(f"Section latents keys: {sorted(section_latents.keys())}")
+            else:
+                print("No section images were successfully processed")
             
         vae_time = time.time() - vae_start_time
         print(f"VAE encoding completed in {vae_time:.2f} seconds")
@@ -319,14 +338,14 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
             if not section_map:
                 return default_llama_vec, default_clip_pooler, default_mask
                 
-            # Find the nearest section number <= current section
+            # Find the section <= current section. First, get all valid section numbers
             valid_keys = [k for k in section_map.keys() if k <= i_section]
             if not valid_keys:
                 return default_llama_vec, default_clip_pooler, default_mask
                 
             # Get the closest previous section
             use_key = max(valid_keys)
-            _, section_prompt_text = section_map[use_key]
+            img, section_prompt_text = section_map[use_key]
             
             # Skip if no prompt or empty
             if not section_prompt_text or not section_prompt_text.strip():
@@ -342,32 +361,41 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
                 load_model_as_complete(models.text_encoder_2, target_device=gpu)
                 
             # Encode the section-specific prompt
-            section_llama_vec, section_clip_pooler = encode_prompt_conds(
-                section_prompt_text, models.text_encoder, models.text_encoder_2, 
-                models.tokenizer, models.tokenizer_2
-            )
-            
-            # Process attention mask
-            section_llama_vec, section_mask = crop_or_pad_yield_mask(section_llama_vec, length=512)
-            
-            # Convert to correct dtype
-            section_llama_vec = section_llama_vec.to(models.transformer.dtype)
-            section_clip_pooler = section_clip_pooler.to(models.transformer.dtype)
-            
-            return section_llama_vec, section_clip_pooler, section_mask
+            try:
+                section_llama_vec, section_clip_pooler = encode_prompt_conds(
+                    section_prompt_text, models.text_encoder, models.text_encoder_2, 
+                    models.tokenizer, models.tokenizer_2
+                )
+                
+                # Process attention mask
+                section_llama_vec, section_mask = crop_or_pad_yield_mask(section_llama_vec, length=512)
+                
+                # Convert to correct dtype
+                section_llama_vec = section_llama_vec.to(models.transformer.dtype)
+                section_clip_pooler = section_clip_pooler.to(models.transformer.dtype)
+                
+                return section_llama_vec, section_clip_pooler, section_mask
+            except Exception as e:
+                print(f"Error encoding section prompt: {e}")
+                return default_llama_vec, default_clip_pooler, default_mask
         
         # Define helper function for getting section-specific latents
         def get_section_latent(i_section, section_map, section_latents, default_latent):
             """Get the appropriate latent for the current section"""
             if not section_map or not section_latents or len(section_latents) == 0:
                 return default_latent
-                
-            # Find the nearest section number <= current section
-            valid_keys = [k for k in section_latents.keys() if k <= i_section]
-            if valid_keys:
-                use_key = max(valid_keys)  # Get the closest previous section
-                print(f"Using image from section {use_key} for section {i_section}")
-                return section_latents[use_key]
+            
+            try:
+                # Find the nearest section number <= current section
+                valid_keys = [k for k in section_latents.keys() if k <= i_section]
+                if valid_keys:
+                    use_key = max(valid_keys)  # Get the closest previous section
+                    print(f"Using image from section {use_key} for section {i_section}")
+                    section_latent = section_latents[use_key]
+                    print(f"Section latent shape: {section_latent.shape}, min: {section_latent.min().item():.4f}, max: {section_latent.max().item():.4f}")
+                    return section_latent
+            except Exception as e:
+                print(f"Error selecting section latent: {e}")
                 
             return default_latent
         
@@ -410,13 +438,22 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
             clean_latent_indices_pre, _, latent_indices, clean_latent_indices_post, clean_latent_2x_indices, clean_latent_4x_indices = indices.split([1, latent_padding_size, latent_window_size, 1, 2, 16], dim=1)
             clean_latent_indices = torch.cat([clean_latent_indices_pre, clean_latent_indices_post], dim=1)
 
+            # Log section processing
+            print(f"\n== Processing section {i_section}/{len(latent_paddings)-1} (padding: {latent_padding}) ==")
+            print(f"  - First section: {is_first_section}")
+            print(f"  - Last section: {is_last_section}")
+            print(f"  - Use end latent: {use_end_latent}")
+            print(f"  - Latent padding size: {latent_padding_size}")
+            
             # Get section-specific latent if available
             current_latent = get_section_latent(i_section, section_map, section_latents, start_latent)
+            print(f"  - Using latent for section {i_section}: shape {current_latent.shape}")
             
             # Get section-specific prompt if available
             current_llama_vec, current_clip_pooler, current_mask = get_section_prompt(
                 i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask
             )
+            print(f"  - Using prompt for section {i_section}: shape {current_llama_vec.shape}")
             
             # Prepare clean latents using the current latent (which might be section-specific)
             clean_latents_pre = current_latent.to(history_latents)
