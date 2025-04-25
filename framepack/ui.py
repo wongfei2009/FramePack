@@ -30,6 +30,25 @@ def create_ui(models, stream):
     from framepack.config.parameter_config import param_config
     logger.info("Loading saved parameters for UI...")
     
+    # Helper functions for time formatting
+    def format_time(seconds):
+        """Format seconds into a readable time string"""
+        # Simplified format with just 2 decimal places
+        if seconds < 60:
+            return f"{seconds:.2f}s"
+        minutes = int(seconds // 60)
+        secs = seconds % 60
+        # Show seconds with 2 decimal places
+        return f"{minutes}m {secs:.2f}s"
+    
+    # Function to calculate section timing information
+    def calc_section_timing(section_index, latent_window_size):
+        """Calculate the time range for a specific section"""
+        frames_per_section = latent_window_size * 4 - 3
+        start_time = (section_index * frames_per_section) / 24  # In seconds
+        end_time = ((section_index + 1) * frames_per_section - 1) / 24  # In seconds
+        return f"Time Range: {format_time(start_time)} - {format_time(end_time)}"
+    
     # Define sample prompts
     quick_prompts = [
         'The girl dances gracefully, with clear movements, full of charm.',
@@ -160,17 +179,30 @@ def create_ui(models, stream):
     
     /* New styles for improved section controls */
     .section-box {
-        border: 1px solid #e6e6e6;
-        border-radius: 8px;
-        padding: 10px;
+        border: 1px solid #eaeaea;
+        border-radius: 10px;
+        padding: 15px;
         margin-bottom: 15px;
-        background-color: #f9f9f9;
+        background-color: white;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        transition: box-shadow 0.2s ease-in-out;
+    }
+    
+    .section-box:hover {
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
     
     .section-header {
-        margin: 0 0 10px 0 !important;
+        margin: 0 0 5px 0 !important;
         color: #0d6efd;
         font-weight: 600;
+    }
+    
+    /* Add some spacing between elements */
+    .section-box > .gr-form > .gr-block, 
+    .section-box > .gr-block {
+        margin-top: 5px !important;
+        margin-bottom: 5px !important;
     }
     
     .section-separator {
@@ -186,10 +218,11 @@ def create_ui(models, stream):
         margin: 2px !important;
     }
     
-    .section-number input {
-        background-color: #f0f0f0 !important;
+    .section-timing-info {
+        margin: 0 0 10px 0 !important;
+        padding: 0 !important;
+        font-size: 0.9em !important;
         color: #666 !important;
-        font-weight: 600 !important;
     }
     .generation-info {
         background-color: rgba(0,0,0,0.03);
@@ -422,24 +455,35 @@ def create_ui(models, stream):
                                             # Create sections for this tab
                                             for i in range(start_idx, end_idx):
                                                 with gr.Group(elem_classes="section-box"):
-                                                    with gr.Row():
-                                                        with gr.Column(scale=1):
-                                                            # Add header for each section
-                                                            gr.Markdown(f"### Section {i}", elem_classes="section-header")
+                                                    # Section header with cleaner styling
+                                                    gr.Markdown(f"### Section {i}", elem_classes="section-header")
                                                     
+                                                    # Time range as regular text at the top
+                                                    current_latent_size = params.get("latent_window_size", 9)
+                                                    timing_info = gr.Markdown(
+                                                        calc_section_timing(i, current_latent_size),
+                                                        elem_classes="section-timing-info"
+                                                    )
+                                                    
+                                                    # Store timing_info references to update later
+                                                    if 'section_timing_displays' not in locals():
+                                                        section_timing_displays = []
+                                                    section_timing_displays.append((i, timing_info))
+                                                    
+                                                    # Hidden field to store section number
+                                                    section_number = gr.Number(
+                                                        value=i,
+                                                        visible=False
+                                                    )
+                                                
+                                                    # Main content row with adjusted scales
                                                     with gr.Row():
-                                                        with gr.Column(scale=1):
-                                                            section_number = gr.Number(
-                                                                label="Section Number", 
-                                                                value=i,  # 0-based index for actual section
-                                                                precision=0,
-                                                                elem_classes="section-number",
-                                                                interactive=False  # Make non-interactive since it's pre-defined
-                                                            )
+                                                        # Give more space to the prompt (scale 3) vs the image (scale 2)
+                                                        with gr.Column(scale=3):
                                                             section_prompt = gr.Textbox(
                                                                 label="Section Prompt", 
                                                                 placeholder="Section-specific prompt (optional)",
-                                                                lines=2,
+                                                                lines=3,  # Increased lines
                                                                 elem_classes="section-prompt"
                                                             )
                                                         
@@ -1004,6 +1048,23 @@ Video generation process has finished successfully."""
             outputs=[total_sections_info],
             show_progress=False
         )
+        
+        # Function to update all section timing displays
+        if 'section_timing_displays' in locals():
+            def update_all_section_timings(latent_size):
+                """Update all section timing displays with the new latent window size"""
+                results = []
+                for section_idx, _ in section_timing_displays:
+                    results.append(calc_section_timing(section_idx, latent_size))
+                return results
+            
+            # Connect section timing update function
+            latent_window_size.change(
+                fn=update_all_section_timings,
+                inputs=[latent_window_size],
+                outputs=[timing_info for _, timing_info in section_timing_displays],
+                show_progress=False
+            )
         
         total_latent_sections.change(
             fn=update_total_sections_info,
