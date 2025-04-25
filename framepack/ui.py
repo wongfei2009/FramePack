@@ -408,9 +408,7 @@ def create_ui(models, stream):
                                 frames_per_section = latent_window_size * 4 - 3
                                 seconds_per_section = frames_per_section / 24
                                 return f"""
-                                Define specific images and prompts for different sections of your video:
-                                - Each section corresponds to {frames_per_section} frames ({seconds_per_section:.1f} seconds at 24fps)
-                                - Section 0 starts at the beginning of the video
+                                Define specific images and prompts for different sections of your video:                                
                                 - If a section has no specific image/prompt, it will use the previous section's settings
                                 """
                             
