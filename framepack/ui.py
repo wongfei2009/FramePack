@@ -553,7 +553,7 @@ def create_ui(models, stream):
                             progress_bar = gr.HTML('', elem_classes='no-generating-animation')
                         
                         gr.Markdown(
-                            'Note: Ending actions are generated before starting actions due to inverted sampling. If starting action is not visible yet, wait for more frames. You can optionally specify a final frame to guide the ending of the video.',
+                            'Note: Ending actions are generated before starting actions due to inverted sampling. If starting action is not visible yet, wait for more frames.',
                             elem_classes="info-text"
                         )
                 
