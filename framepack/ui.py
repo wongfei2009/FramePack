@@ -49,8 +49,12 @@ def create_ui(models, stream):
     
     # Define sample prompts
     quick_prompts = [
-        'The girl dances gracefully, with clear movements, full of charm.',
-        'A character doing some simple body movements.',
+        'The character dances gracefully, with clear movements, full of charm.',
+        'The character does some simple body movements.',
+        'The character walks gracefully, with clear movements, across the room.',
+        'The character breathes calmly, with subtle body movements.',
+		'The character walks forward, gestures with hands, with natural posture.',	
+		'The character performs dynamic movements with energy and flowing motion.',	
     ]
     
     # Format quick prompts for dataset
@@ -879,60 +883,7 @@ def create_ui(models, stream):
                             height=320, 
                             loop=True
                         )
-                        
-                        # Add custom JavaScript to handle autoplay when tab gets focus
-                        gr.HTML(
-                            """
-                            <script>
-                            // Function to ensure video autoplay works when tab becomes visible
-                            document.addEventListener('visibilitychange', function() {
-                                if (document.visibilityState === 'visible') {
-                                    // Find all video elements in the Generated Video container
-                                    setTimeout(function() {
-                                        const videoContainers = document.querySelectorAll('.video-container');
-                                        videoContainers.forEach(container => {
-                                            const videos = container.querySelectorAll('video');
-                                            videos.forEach(video => {
-                                                if (video.paused) {
-                                                    video.play().catch(e => console.log('Autoplay failed:', e));
-                                                }
-                                            });
-                                        });
-                                    }, 100); // Small delay to ensure DOM is ready
-                                }
-                            });
-                            
-                            // MutationObserver to detect when new videos are added
-                            const observer = new MutationObserver(function(mutations) {
-                                mutations.forEach(function(mutation) {
-                                    if (mutation.addedNodes.length) {
-                                        mutation.addedNodes.forEach(function(node) {
-                                            if (node.nodeName === 'VIDEO') {
-                                                // Try to play the video when added to DOM
-                                                setTimeout(function() {
-                                                    if (node.paused) {
-                                                        node.play().catch(e => console.log('Autoplay failed:', e));
-                                                    }
-                                                }, 100);
-                                            }
-                                        });
-                                    }
-                                });
-                            });
-                            
-                            // Start observing when the DOM is loaded
-                            document.addEventListener('DOMContentLoaded', function() {
-                                // Observe the entire document for video additions
-                                observer.observe(document.body, { 
-                                    childList: true, 
-                                    subtree: true 
-                                });
-                            });
-                            </script>
-                            """,
-                            visible=True
-                        )
-                        
+                                                
                         # Generation progress information
                         with gr.Group(elem_classes="generation-info"):
                             progress_desc = gr.Markdown('', elem_classes='no-generating-animation')
