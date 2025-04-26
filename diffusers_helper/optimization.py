@@ -83,227 +83,94 @@ def configure_teacache(transformer, vram_gb, steps=25, rel_l1_thresh=None):
     
     return transformer
 
-def optimize_for_inference(transformer, high_vram=False, enable_optimization=False):
+def optimize_for_inference(transformer, high_vram=False):
     """
-    Apply optimizations that complement Sage Attention for inference.
-    
-    This version is streamlined for systems with Sage Attention always enabled,
-    focusing only on optimizations that work alongside Sage Attention rather
-    than competing with it.
-    
+    Apply potentially beneficial optimizations for inference, assuming the model
+    is already loaded in the desired precision (e.g., BF16).
+
+    Optimizations applied:
+    - Enables TF32 for matrix multiplications on compatible hardware.
+    - Attempts to enable PyTorch JIT kernel fusion.
+    - Applies model-specific high-VRAM optimizations if available.
+
     Args:
-        transformer: The transformer model to optimize
-        high_vram: Whether the system has high VRAM available
-        enable_optimization: Whether to enable optimizations (kept for API compatibility)
-    
+        transformer: The transformer model to optimize.
+        high_vram: Boolean indicating if high VRAM is available.    
+
     Returns:
-        The optimized transformer model
+        The potentially optimized transformer model.
     """
     # Debug info
-    print(f"optimize_for_inference called with high_vram={high_vram}, enable_optimization={enable_optimization}")
+    print(f"optimize_for_inference called with high_vram={high_vram}")
     print(f"PyTorch version: {torch.__version__}")
-    
-    # Store original forward functions if we need to restore
-    if not hasattr(transformer, '_original_forwards'):
-        transformer._original_forwards = {}
-    
-    # Enable TF32 for faster matmul operations throughout the model - do this once globally
-    if torch.cuda.is_available() and hasattr(torch.backends, 'cuda'):
-        torch.backends.cuda.matmul.allow_tf32 = True
-        print("Enabled TF32 for matrix multiplications")
-    
-    # Check if BFloat16 is supported - do this once globally
-    bf16_supported = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
-    if not bf16_supported:
-        print("BFloat16 is not supported on this device")
-    
-    # We apply optimizations regardless of the enable_optimization flag
-    # since these are specifically chosen to complement Sage Attention
+
+    optimizations_applied = []
+
+    # 1. Enable TF32 for faster matmul operations
+    # This is a global setting beneficial for Ampere+ GPUs, independent of model dtype.
+    if torch.cuda.is_available() and hasattr(torch.backends, 'cuda') and hasattr(torch.backends.cuda, 'matmul'):
+        try:
+            # Check current value before setting
+            current_tf32 = torch.backends.cuda.matmul.allow_tf32
+            if not current_tf32:
+                torch.backends.cuda.matmul.allow_tf32 = True
+                print("Enabled TF32 for CUDA matrix multiplications.")
+                optimizations_applied.append("TF32")
+            else:
+                 print("TF32 for CUDA matrix multiplications already enabled.")
+                 optimizations_applied.append("TF32 (already enabled)")
+        except Exception as e:
+            print(f"Warning: Could not enable TF32. Error: {e}")
+
+    # 2. Enable kernel fusion optimizations
+    # Attempts to fuse small operations into larger kernels to reduce overhead.
+    # Uses internal PyTorch JIT flags, which might change across versions.
     try:
-        print("Applying Sage Attention-compatible optimizations...")
-        
-        # Function to safely convert a module to BFloat16
-        def safe_to_bf16(module, name):
-            if not bf16_supported:
-                return module
-                
-            try:
-                if hasattr(module, 'to') and callable(module.to):
-                    return module.to(torch.bfloat16)
-                return module
-            except Exception as e:
-                print(f"  - Could not convert {name} to BFloat16: {e}")
-                return module
-        
-        # Function to optimize projection matrices and other components
-        def optimize_module(obj):
-            obj_name = type(obj).__name__
-            
-            # 1. Optimize attention projections
-            if hasattr(obj, 'attn'):
-                attn = obj.attn
-                # Handle the case where attn might be None in some models
-                if attn is not None and hasattr(attn, 'to_q') and attn.to_q is not None:
-                    print(f"Optimizing attention projections for {obj_name}")
-                    
-                    if bf16_supported:
-                        # Main attention projections
-                        if hasattr(attn, 'to_q') and attn.to_q is not None:
-                            attn.to_q = safe_to_bf16(attn.to_q, 'to_q')
-                            
-                        if hasattr(attn, 'to_k') and attn.to_k is not None:
-                            attn.to_k = safe_to_bf16(attn.to_k, 'to_k')
-                            
-                        if hasattr(attn, 'to_v') and attn.to_v is not None:
-                            attn.to_v = safe_to_bf16(attn.to_v, 'to_v')
-                        
-                        # Output projections
-                        if hasattr(attn, 'to_out') and isinstance(attn.to_out, list):
-                            for i, layer in enumerate(attn.to_out):
-                                attn.to_out[i] = safe_to_bf16(layer, f'to_out[{i}]')
-                        
-                        # Additional projections for cross-attention
-                        if hasattr(attn, 'add_q_proj'):
-                            attn.add_q_proj = safe_to_bf16(attn.add_q_proj, 'add_q_proj')
-                            
-                        if hasattr(attn, 'add_k_proj'):
-                            attn.add_k_proj = safe_to_bf16(attn.add_k_proj, 'add_k_proj')
-                            
-                        if hasattr(attn, 'add_v_proj'):
-                            attn.add_v_proj = safe_to_bf16(attn.add_v_proj, 'add_v_proj')
-                            
-                        if hasattr(attn, 'to_add_out'):
-                            attn.to_add_out = safe_to_bf16(attn.to_add_out, 'to_add_out')
-                        
-                        print(f"  - Converted attention projections to BFloat16")
-            
-            # 2. Optimize FeedForward networks
-            if hasattr(obj, 'ff') and obj.ff is not None:
-                print(f"Optimizing feed-forward network for {obj_name}")
-                
-                if bf16_supported:
-                    # For standard FeedForward modules
-                    if hasattr(obj.ff, 'net') and isinstance(obj.ff.net, torch.nn.Sequential):
-                        for i, layer in enumerate(obj.ff.net):
-                            obj.ff.net[i] = safe_to_bf16(layer, f'ff.net[{i}]')
-                    
-                    # For FeedForward modules with direct linear projections
-                    if hasattr(obj.ff, 'proj_in'):
-                        obj.ff.proj_in = safe_to_bf16(obj.ff.proj_in, 'ff.proj_in')
-                        
-                    if hasattr(obj.ff, 'proj_out'):
-                        obj.ff.proj_out = safe_to_bf16(obj.ff.proj_out, 'ff.proj_out')
-                        
-                    print(f"  - Converted feed-forward networks to BFloat16")
-            
-            # 3. Optimize additional projection layers in SingleTransformerBlock
-            if hasattr(obj, 'proj_mlp'):
-                print(f"Optimizing proj_mlp for {obj_name}")
-                
-                if bf16_supported:
-                    obj.proj_mlp = safe_to_bf16(obj.proj_mlp, 'proj_mlp')
-                    print(f"  - Converted proj_mlp to BFloat16")
-            
-            if hasattr(obj, 'proj_out'):
-                print(f"Optimizing proj_out for {obj_name}")
-                
-                if bf16_supported:
-                    obj.proj_out = safe_to_bf16(obj.proj_out, 'proj_out')
-                    print(f"  - Converted proj_out to BFloat16")
-            
-            # 4. Special handling for ClipVisionProjection
-            if "ClipVisionProjection" in obj_name:
-                print(f"Optimizing {obj_name}")
-                
-                if bf16_supported:
-                    if hasattr(obj, 'up'):
-                        obj.up = safe_to_bf16(obj.up, 'up')
-                    
-                    if hasattr(obj, 'down'):
-                        obj.down = safe_to_bf16(obj.down, 'down')
-                        
-                    print(f"  - Converted ClipVisionProjection layers to BFloat16")
-            
-            # 5. Special handling for Embedding processors
-            if "CombinedTimestep" in obj_name:
-                print(f"Optimizing {obj_name}")
-                
-                if bf16_supported:
-                    # Convert timestep embedders
-                    if hasattr(obj, 'timestep_embedder'):
-                        obj.timestep_embedder = safe_to_bf16(obj.timestep_embedder, 'timestep_embedder')
-                    
-                    # Convert guidance embedder if present
-                    if hasattr(obj, 'guidance_embedder'):
-                        obj.guidance_embedder = safe_to_bf16(obj.guidance_embedder, 'guidance_embedder')
-                    
-                    # Convert text embedder
-                    if hasattr(obj, 'text_embedder'):
-                        obj.text_embedder = safe_to_bf16(obj.text_embedder, 'text_embedder')
-                        
-                    print(f"  - Converted embedding components to BFloat16")
-            
-            # Apply recursively to any child modules
-            for name, child in obj.named_children():
-                optimize_module(child)
-        
-        # Apply optimization to transformer blocks
-        if hasattr(transformer, 'transformer_blocks'):
-            print(f"Optimizing {len(transformer.transformer_blocks)} transformer blocks")
-            for block in transformer.transformer_blocks:
-                optimize_module(block)
-        
-        if hasattr(transformer, 'single_transformer_blocks'):
-            print(f"Optimizing {len(transformer.single_transformer_blocks)} single transformer blocks")
-            for block in transformer.single_transformer_blocks:
-                optimize_module(block)
-        
-        # Optimize embedding components
-        if hasattr(transformer, 'time_text_embed'):
-            print(f"Optimizing time_text_embed")
-            optimize_module(transformer.time_text_embed)
-        
-        if hasattr(transformer, 'context_embedder'):
-            print(f"Optimizing context_embedder")
-            optimize_module(transformer.context_embedder)
-        
-        if hasattr(transformer, 'x_embedder'):
-            print(f"Optimizing x_embedder")
-            optimize_module(transformer.x_embedder)
-        
-        if hasattr(transformer, 'clean_x_embedder') and transformer.clean_x_embedder is not None:
-            print(f"Optimizing clean_x_embedder")
-            optimize_module(transformer.clean_x_embedder)
-        
-        if hasattr(transformer, 'image_projection') and transformer.image_projection is not None:
-            print(f"Optimizing image_projection")
-            optimize_module(transformer.image_projection)
-        
-        # Enable kernel fusion optimizations for better throughput
-        if hasattr(torch, '_C') and hasattr(torch._C, '_jit_set_profiling_executor'):
-            torch._C._jit_set_profiling_executor(True)
-            torch._C._jit_set_profiling_mode(True)
-            print("Enabled fused kernel profiling")
-            
-        if hasattr(torch._C, '_jit_override_can_fuse_on_cpu'):
-            torch._C._jit_override_can_fuse_on_cpu(True)
-            print("Enabled CPU kernel fusion")
-            
-        if hasattr(torch._C, '_jit_override_can_fuse_on_gpu'):
-            torch._C._jit_override_can_fuse_on_gpu(True)
-            print("Enabled GPU kernel fusion")
-            
-        print("Successfully applied Sage Attention-compatible optimizations")
-        print("PyTorch optimization enabled")
-        
+        fused_kernels_enabled = False
+        # Check if JIT features are available
+        if hasattr(torch, '_C'):
+            if hasattr(torch._C, '_jit_set_profiling_executor') and hasattr(torch._C, '_jit_set_profiling_mode'):
+                torch._C._jit_set_profiling_executor(True)
+                torch._C._jit_set_profiling_mode(True)
+                fused_kernels_enabled = True
+                print("Enabled JIT profiling executor and mode for fusion.")
+            if hasattr(torch._C, '_jit_override_can_fuse_on_cpu'):
+                torch._C._jit_override_can_fuse_on_cpu(True)
+                fused_kernels_enabled = True
+                print("Enabled CPU kernel fusion override.")
+            if hasattr(torch._C, '_jit_override_can_fuse_on_gpu'):
+                torch._C._jit_override_can_fuse_on_gpu(True)
+                fused_kernels_enabled = True
+                print("Enabled GPU kernel fusion override.")
+
+        if fused_kernels_enabled:
+            optimizations_applied.append("Kernel Fusion")
+        else:
+             print("Could not find JIT fusion settings (might be unavailable in this PyTorch version).")
+
     except Exception as e:
-        print(f"Failed to apply optimizations: {e}")
-        import traceback
-        traceback.print_exc()
-    
-    # Apply VRAM-dependent optimizations only for high VRAM systems
+        print(f"Warning: Could not enable kernel fusion settings. Error: {e}")
+        # Optionally uncomment traceback for debugging:
+        # traceback.print_exc()
+
+    # 3. Apply High VRAM specific optimizations (if the model supports it)
+    # This depends on the specific transformer implementation having this method.
     if high_vram and hasattr(transformer, 'set_attention_optimization'):
-        transformer.set_attention_optimization(True)
-        print("Applied high VRAM optimizations")
-    
+        try:
+            transformer.set_attention_optimization(True)
+            print("Applied high VRAM optimization via transformer.set_attention_optimization(True).")
+            optimizations_applied.append("High VRAM Attention")
+        except Exception as e:
+            print(f"Warning: Could not apply high VRAM optimization. Error: {e}")
+            # Optionally uncomment traceback for debugging:
+            # traceback.print_exc()
+    elif high_vram:
+         print("High VRAM mode active, but transformer does not have 'set_attention_optimization' method.")
+
+    # Final summary
+    if optimizations_applied:
+        print(f"Successfully applied optimizations: {', '.join(optimizations_applied)}")
+    else:
+        print("No specific optimizations were applied or enabled in this call (some might have been pre-enabled).")
+
     return transformer
