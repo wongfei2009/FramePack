@@ -1013,21 +1013,21 @@ def create_ui(models, stream):
                                 label="CFG Scale", 
                                 minimum=1.0, maximum=15.0, 
                                 value=params.get("cfg", 1.0), step=0.1, 
-                                info='Higher values make generation adhere more closely to the prompt.'
+                                info='Controls prompt adherence strength; amplifies pos/neg difference. Interacts with Distilled CFG.'
                             )
                             
                             gs = gr.Slider(
                                 label="Distilled CFG Scale", 
                                 minimum=1.0, maximum=32.0, 
                                 value=params.get("gs", 10.0), step=0.01, 
-                                info='Works together with CFG Scale. Changing this value is typically not recommended.'
+                                info='Internal model conditioning guidance factor (default 10.0); significant changes not recommended.'
                             )
                             
                             rs = gr.Slider(
                                 label="CFG Re-Scale", 
                                 minimum=0.0, maximum=1.0, 
                                 value=params.get("rs", 0.0), step=0.01, 
-                                info='Controls the level of CFG re-scaling. Values above 0 can help reduce over-saturation and improve quality at higher CFG values.'
+                                info='Rescales final guidance towards positive prediction to prevent artifacts (useful with high CFG); 0.0 disables.'
                             )
                             
                             # Calculate frames per section function
