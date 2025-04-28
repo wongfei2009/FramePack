@@ -40,7 +40,7 @@ from diffusers_helper.gradio.progress_bar import make_progress_bar_html
 @torch.no_grad()
 def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
            steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
-           end_frame_strength, section_settings=None, models=None, stream=None, outputs_folder='./outputs/'):
+           keep_section_videos, end_frame_strength, section_settings=None, models=None, stream=None, outputs_folder='./outputs/'):
     """
     Worker function for generating videos with FramePack.
     
@@ -698,6 +698,8 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
             save_bcthw_as_mp4(history_pixels, output_filename, fps=24, crf=mp4_crf)
             video_save_time = performance_tracker.end_timer("video_save")
             
+
+            
             print(f'Decoded. Current latent shape {real_history_latents.shape}; pixel shape {history_pixels.shape}')
             print(f'Video saved in {video_save_time:.2f} seconds')
 
@@ -738,6 +740,30 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
     
     # Calculate total generation time
     total_generation_time = time.time() - performance_tracker.get_start_time()
+    
+    # Clean up intermediate videos if not keeping them
+    if not keep_section_videos:
+        try:
+            deleted_count = 0
+            # Get the final video name
+            final_video_path = output_filename
+            final_video_name = os.path.basename(final_video_path)
+            
+            # Find all videos with the same job_id prefix
+            for filename in os.listdir(generation_folder):
+                # Keep only the final video, delete any other MP4 files with the same job ID
+                if filename.startswith(job_id) and filename.endswith('.mp4') and filename != final_video_name:
+                    try:
+                        file_path = os.path.join(generation_folder, filename)
+                        os.remove(file_path)
+                        deleted_count += 1
+                    except Exception as e:
+                        print(f"Error deleting intermediate file {filename}: {e}")
+                        
+            if deleted_count > 0:
+                print(f"Cleaned up {deleted_count} intermediate video files")
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
     
     # Send completion message with enhanced information
     final_frame_count = int(max(0, total_generated_latent_frames * 4 - 3))

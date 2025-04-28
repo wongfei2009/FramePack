@@ -946,6 +946,13 @@ def create_ui(models, stream):
                                 value=params.get("mp4_crf", 16), step=1, 
                                 info="Lower means better quality. 0 is uncompressed. Change to 16 if you get black outputs."
                             )
+                            
+                            # Option to keep section videos
+                            keep_section_videos = gr.Checkbox(
+                                label="Keep intermediate section videos",
+                                value=False,
+                                info="When checked, intermediate section videos will be kept. Otherwise, only the final video is saved."
+                            )
                         
                         # Right column
                         with gr.Column():
@@ -1042,7 +1049,7 @@ def create_ui(models, stream):
         # Define process function
         def process(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                     steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
-                    end_frame_strength, enable_section_controls, section_settings=None):
+                    keep_section_videos, end_frame_strength, enable_section_controls, section_settings=None):
             """
             Process the video generation request.
             
@@ -1085,7 +1092,7 @@ def create_ui(models, stream):
                 worker, 
                 input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
-                end_frame_strength, processed_section_settings,
+                keep_section_videos, end_frame_strength, processed_section_settings,
                 models, stream
             )
 
@@ -1189,7 +1196,7 @@ Video generation process has finished successfully."""
             inputs=[
                 input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
-                end_frame_strength, enable_section_controls, section_settings
+                keep_section_videos, end_frame_strength, enable_section_controls, section_settings
             ],
             outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button]
         )
