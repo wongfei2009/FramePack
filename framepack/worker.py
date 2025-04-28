@@ -386,11 +386,16 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
                 return default_latent
             
             try:
-                # Find the nearest section number <= current section
-                valid_keys = [k for k in section_latents.keys() if k <= i_section]
+                # Calculate the total number of sections
+                total_sections = len(latent_paddings)
+                
+                # Find the nearest section number <= (total_sections - current section)
+                reversed_index = total_sections - i_section - 1
+                valid_keys = [k for k in section_latents.keys() if k <= reversed_index]
+                
                 if valid_keys:
                     use_key = max(valid_keys)  # Get the closest previous section
-                    print(f"Using image from section {use_key} for section {i_section}")
+                    print(f"Using image from section {use_key} for section {i_section} (reversed index: {reversed_index})")
                     section_latent = section_latents[use_key]
                     print(f"Section latent shape: {section_latent.shape}, min: {section_latent.min().item():.4f}, max: {section_latent.max().item():.4f}")
                     return section_latent

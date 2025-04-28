@@ -753,7 +753,7 @@ def create_ui(models, stream):
                                     for tab_idx in range((max_sections + 4) // 5):  # Ceiling division to get number of tabs needed
                                         start_idx = tab_idx * 5
                                         end_idx = min(start_idx + 5, max_sections)
-                                        tab_label = f"Sections {start_idx}-{end_idx - 1}"
+                                        tab_label = f"Sections {start_idx + 1}-{end_idx}"
                                         
                                         with gr.TabItem(tab_label):
                                             # Create sections for this tab
