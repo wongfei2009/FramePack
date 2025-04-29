@@ -815,7 +815,7 @@ def create_ui(models, stream):
                         
                         # Prompt inputs after section controls
                         prompt = gr.Textbox(label="Prompt", value=params.get("prompt", ''), lines=4)
-                        n_prompt = gr.Textbox(label="Negative Prompt", value=params.get("n_prompt", ""), lines=2, 
+                        n_prompt = gr.Textbox(label="Negative Prompt", value=params.get("n_prompt", ""), lines=2,
                               info="Items to exclude from generation")
                         example_quick_prompts = gr.Dataset(
                             samples=quick_prompts, 
@@ -928,7 +928,11 @@ def create_ui(models, stream):
                                 info='Controls cache reuse frequency. Higher values = faster generation but potential quality loss. Lower values = slower but higher quality.'
                             )
                             
-
+                            fp8_optimization = gr.Checkbox(
+                                label="FP8 Optimization",
+                                value=params.get("fp8_optimization", False),
+                                info="Quantize transformer weights to FP8, reducing GPU memory usage. May improve performance but could affect quality."
+                            )
                             
                             gpu_memory_preservation = gr.Slider(
                                 label="GPU Inference Preserved Memory (GB)", 
@@ -953,6 +957,8 @@ def create_ui(models, stream):
                                 value=False,
                                 info="When checked, intermediate section videos will be kept. Otherwise, only the final video is saved."
                             )
+                            
+                            # No Model Customization section needed anymore
                         
                         # Right column
                         with gr.Column():
@@ -1002,7 +1008,7 @@ def create_ui(models, stream):
                                 latent_window_size = gr.Slider(
                                     label="Latent Window Size", 
                                     minimum=1, maximum=33, 
-                                    value=params.get("latent_window_size", 9), step=1, 
+                                    value=params.get("latent_window_size", 9), step=1,
                                     info="Controls frames per section. Higher values give better temporal coherence but use more VRAM."
                                 )
                                 
@@ -1014,14 +1020,28 @@ def create_ui(models, stream):
                             def update_latent_window_info(value):
                                 info_text = calc_frames_per_section(value)
                                 return f'<div class="info-text latent-window-info">{info_text}</div>'
-                            
-                            # This change event is now handled in the connections section
-                            
+                                                        
                             end_frame_strength = gr.Slider(
                                 label="End Frame Influence", 
                                 minimum=0.01, maximum=1.00, 
-                                value=params.get("end_frame_strength", 0.50), step=0.01, 
+                                value=params.get("end_frame_strength", 0.50), step=0.01,
                                 info="Controls how strongly the end frame influences the video. Lower values reduce impact."
+                            )
+                                                        
+                            lora_file = gr.File(
+                                label="LoRA File", 
+                                file_count="single", 
+                                type="filepath",
+                                # Note: Gradio 5.23.0 doesn't support info in File component, so using a separate Markdown
+                            )
+
+                            lora_multiplier = gr.Slider(
+                                label="LoRA Multiplier",
+                                minimum=0.0,
+                                maximum=1.0,
+                                value=0.8,
+                                step=0.1,
+                                info="Strength of the LoRA effect. Higher values make the LoRA more prominent."
                             )
                     
                     # Add buttons at the bottom
@@ -1049,7 +1069,8 @@ def create_ui(models, stream):
         # Define process function
         def process(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                     steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
-                    keep_section_videos, end_frame_strength, enable_section_controls, section_settings=None):
+                    keep_section_videos, end_frame_strength, enable_section_controls, fp8_optimization, lora_file, 
+                    lora_multiplier, section_settings=None):
             """
             Process the video generation request.
             
@@ -1093,6 +1114,7 @@ def create_ui(models, stream):
                 input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
                 keep_section_videos, end_frame_strength, processed_section_settings,
+                lora_file, lora_multiplier, fp8_optimization,
                 models, stream
             )
 
@@ -1196,7 +1218,8 @@ Video generation process has finished successfully."""
             inputs=[
                 input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
-                keep_section_videos, end_frame_strength, enable_section_controls, section_settings
+                keep_section_videos, end_frame_strength, enable_section_controls, fp8_optimization, lora_file, 
+                lora_multiplier, section_settings
             ],
             outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button]
         )
@@ -1230,7 +1253,8 @@ Video generation process has finished successfully."""
         def save_all_parameters(seed_val, total_latent_sections_val, resolution_scale_val, 
                                use_teacache_val, teacache_thresh_val, steps_val, gs_val,
                                gpu_memory_val, latent_window_val, mp4_crf_val,
-                               prompt_val, n_prompt_val, cfg_val, rs_val, end_frame_strength_val):
+                               prompt_val, n_prompt_val, cfg_val, rs_val, end_frame_strength_val,
+                               fp8_optimization_val, lora_multiplier_val):
             """Save all current parameter values."""
             params_to_save = {
                 "seed": seed_val,
@@ -1247,7 +1271,9 @@ Video generation process has finished successfully."""
                 "n_prompt": n_prompt_val,
                 "cfg": cfg_val,
                 "rs": rs_val,
-                "end_frame_strength": end_frame_strength_val
+                "end_frame_strength": end_frame_strength_val,
+                "fp8_optimization": fp8_optimization_val,
+                "lora_multiplier": lora_multiplier_val
             }
             
             # Log the parameters we're saving
@@ -1283,6 +1309,8 @@ Video generation process has finished successfully."""
                 cfg: defaults["cfg"],
                 rs: defaults["rs"],
                 end_frame_strength: defaults["end_frame_strength"],
+                fp8_optimization: defaults.get("fp8_optimization", False),
+                lora_multiplier: defaults.get("lora_multiplier", 0.8),
                 save_status: gr.update(value="✓ Parameters restored to default values", visible=True)
             }
             
@@ -1391,7 +1419,8 @@ Video generation process has finished successfully."""
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
                 mp4_crf, prompt, n_prompt,
-                cfg, rs, end_frame_strength
+                cfg, rs, end_frame_strength,
+                fp8_optimization, lora_multiplier
             ],
             outputs=[save_status]
         )
@@ -1414,7 +1443,8 @@ Video generation process has finished successfully."""
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
                 mp4_crf, prompt, n_prompt,
-                cfg, rs, end_frame_strength, save_status
+                cfg, rs, end_frame_strength,
+                fp8_optimization, lora_multiplier, save_status
             ]
         )
         
@@ -1441,7 +1471,8 @@ Video generation process has finished successfully."""
             seed, total_latent_sections, resolution_scale, use_teacache,
             teacache_thresh, steps, gs, gpu_memory_preservation,
             latent_window_size, mp4_crf, prompt,
-            n_prompt, cfg, rs, end_frame_strength
+            n_prompt, cfg, rs, end_frame_strength,
+            fp8_optimization, lora_multiplier
         ]
 
         def load_saved_params():
@@ -1464,7 +1495,9 @@ Video generation process has finished successfully."""
                 params.get("n_prompt", ''),
                 params.get("cfg", 1.0),
                 params.get("rs", 0.0),
-                params.get("end_frame_strength", 1.0)
+                params.get("end_frame_strength", 1.0),
+                params.get("fp8_optimization", False),
+                params.get("lora_multiplier", 0.8)
             ]
 
         block.load(

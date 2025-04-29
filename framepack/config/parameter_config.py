@@ -40,6 +40,10 @@ DEFAULT_PARAMETERS = {
     "mp4_crf": 16,
     "end_frame_strength": 0.5,  # EndFrame influence strength (1.0 = normal, lower values reduce influence)
     
+    # FP8 and LoRA parameters
+    "fp8_optimization": False,  # Enable FP8 quantization of transformer weights
+    "lora_multiplier": 0.8,     # Multiplier for LoRA weights when applied
+    
     # Other parameters as needed
     "prompt": "",
     "n_prompt": ""

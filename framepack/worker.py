@@ -40,12 +40,14 @@ from diffusers_helper.gradio.progress_bar import make_progress_bar_html
 @torch.no_grad()
 def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
            steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
-           keep_section_videos, end_frame_strength, section_settings=None, models=None, stream=None, outputs_folder='./outputs/'):
+           keep_section_videos, end_frame_strength, section_settings=None, lora_file=None, lora_multiplier=0.8, 
+           fp8_optimization=False, models=None, stream=None, outputs_folder='./outputs/'):
     """
     Worker function for generating videos with FramePack.
     
     Args:
         input_image: Input image as numpy array
+        end_frame: Optional end frame as numpy array
         prompt: Text prompt for generation
         n_prompt: Negative prompt
         seed: Random seed
@@ -57,7 +59,15 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
         rs: CFG Re-Scale
         gpu_memory_preservation: Memory to preserve in GB
         use_teacache: Whether to use TeaCache
+        teacache_thresh: Threshold for TeaCache
+        resolution_scale: Scale factor for resolution
         mp4_crf: MP4 compression quality
+        keep_section_videos: Whether to keep intermediate section videos
+        end_frame_strength: Strength of end frame influence
+        section_settings: Optional settings for individual sections
+        lora_file: Path to LoRA file to apply to the model
+        lora_multiplier: Multiplier for LoRA weights
+        fp8_optimization: Whether to apply FP8 optimization
         models: FramePackModels instance
         stream: AsyncStream for communication
         outputs_folder: Folder to save outputs
@@ -465,8 +475,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
             clean_latents_post, clean_latents_2x, clean_latents_4x = history_latents[:, :, :1 + 2 + 16, :, :].split([1, 2, 16], dim=2)
             clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
 
-            # Prepare model for inference with custom threshold
-            models.prepare_for_inference(gpu_memory_preservation, use_teacache, steps, thresh_value)
+            # Prepare model for inference with custom threshold and LoRA/FP8 if specified
+            models.prepare_for_inference(
+                gpu_memory_preservation, use_teacache, steps, thresh_value,
+                lora_file, lora_multiplier, fp8_optimization
+            )
             
             # Track memory before sampling
             performance_tracker.track_memory("before_sampling")

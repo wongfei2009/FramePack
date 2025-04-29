@@ -4,6 +4,8 @@ Model loading and management for FramePack.
 
 import os
 import torch
+import time
+import gc
 from diffusers import AutoencoderKLHunyuanVideo
 from transformers import (
     LlamaModel, 
@@ -23,6 +25,10 @@ from diffusers_helper.optimization import (
     configure_teacache, optimize_for_inference, 
     aggressive_memory_cleanup
 )
+
+# Import LoRA and FP8 utilities
+from utils.lora_utils import merge_lora_to_state_dict
+from utils.fp8_optimization_utils import optimize_state_dict_with_fp8, apply_fp8_monkey_patch
 
 # Define a function to load models locally first or download if not found
 def load_model_locally_or_download(model_cls, model_id, subfolder=None, **kwargs):
@@ -92,13 +98,21 @@ class FramePackModels:
         print(f'Free VRAM {self.free_mem_gb} GB')
         print(f'High-VRAM Mode: {self.high_vram}')
     
-    def load_models(self, has_sage_attn=False):
+    def load_models(self, has_sage_attn=False, lora_file=None, lora_multiplier=0.8, fp8_optimization=False):
         """
         Load all required models.
         
         Args:
             has_sage_attn: Whether Sage Attention is available
+            lora_file: Path to LoRA file to merge into the model
+            lora_multiplier: Multiplier for LoRA weights
+            fp8_optimization: Whether to apply FP8 optimization
         """
+        # Track model loading state - needed for LoRA and FP8
+        self.previous_lora_file = None
+        self.previous_lora_multiplier = None
+        self.previous_fp8_optimization = None
+        
         # Load text encoders and tokenizers
         self.text_encoder = load_model_locally_or_download(
             LlamaModel, 
@@ -148,12 +162,8 @@ class FramePackModels:
             torch_dtype=torch.float16
         ).cpu()
 
-        # Load transformer
-        self.transformer = load_model_locally_or_download(
-            HunyuanVideoTransformer3DModelPacked, 
-            'lllyasviel/FramePackI2V_HY', 
-            torch_dtype=torch.bfloat16
-        ).cpu()
+        # Load transformer and apply LoRA or FP8 if needed
+        self.transformer = self._load_transformer(lora_file, lora_multiplier, fp8_optimization)
 
         # Set models to eval mode
         self.vae.eval()
@@ -167,6 +177,88 @@ class FramePackModels:
 
         # Configure models based on VRAM availability
         self._configure_models()
+        
+    def _load_transformer(self, lora_file=None, lora_multiplier=0.8, fp8_optimization=False):
+        """
+        Load the transformer model with optional LoRA and FP8 optimization.
+        
+        Args:
+            lora_file: Path to LoRA file to merge into the model
+            lora_multiplier: Multiplier for LoRA weights
+            fp8_optimization: Whether to apply FP8 optimization
+            
+        Returns:
+            Loaded transformer model
+        """
+        # Check if we need to reload the model
+        model_changed = (
+            getattr(self, 'transformer', None) is None or
+            lora_file != getattr(self, 'previous_lora_file', None) or
+            lora_multiplier != getattr(self, 'previous_lora_multiplier', None) or
+            fp8_optimization != getattr(self, 'previous_fp8_optimization', None)
+        )
+        
+        if not model_changed and hasattr(self, 'transformer'):
+            print("Using already loaded transformer model")
+            return self.transformer
+            
+        # Update state tracking
+        self.previous_lora_file = lora_file
+        self.previous_lora_multiplier = lora_multiplier
+        self.previous_fp8_optimization = fp8_optimization
+        
+        print("Loading transformer...")
+        
+        # Clean up existing model if any
+        if hasattr(self, 'transformer') and self.transformer is not None:
+            del self.transformer
+            time.sleep(1.0)  # Wait for the previous model to be unloaded
+            torch.cuda.empty_cache()
+            gc.collect()
+        
+        # Load the base transformer model
+        transformer = load_model_locally_or_download(
+            HunyuanVideoTransformer3DModelPacked, 
+            'lllyasviel/FramePackI2V_HY', 
+            torch_dtype=torch.bfloat16
+        ).cpu()
+        
+        transformer.eval()
+        transformer.high_quality_fp32_output_for_inference = True
+        print("transformer.high_quality_fp32_output_for_inference = True")
+        
+        # Apply LoRA or FP8 if needed
+        if lora_file is not None or fp8_optimization:
+            state_dict = transformer.state_dict()
+            
+            # Apply LoRA first if specified
+            if lora_file is not None and os.path.exists(lora_file):
+                print(f"Merging LoRA file {os.path.basename(lora_file)} with multiplier {lora_multiplier}...")
+                state_dict = merge_lora_to_state_dict(state_dict, lora_file, lora_multiplier, device=gpu)
+                gc.collect()
+            elif lora_file is not None:
+                print(f"Warning: LoRA file {lora_file} not found, skipping LoRA application")
+            
+            # Apply FP8 optimization if specified
+            if fp8_optimization:
+                # Define which layers to target and exclude from optimization
+                TARGET_KEYS = ["transformer_blocks", "single_transformer_blocks"]
+                EXCLUDE_KEYS = ["norm"]  # Exclude normalization layers
+                
+                print("Optimizing transformer model with FP8...")
+                state_dict = optimize_state_dict_with_fp8(
+                    state_dict, gpu, TARGET_KEYS, EXCLUDE_KEYS, move_to_device=False
+                )
+                
+                # Apply the monkey patch for FP8
+                apply_fp8_monkey_patch(transformer, state_dict, use_scaled_mm=False)
+                gc.collect()
+            
+            # Load the modified state dict
+            info = transformer.load_state_dict(state_dict, strict=True, assign=True)
+            print(f"Model modifications applied: {info}")
+        
+        return transformer
         
     def _configure_models(self):
         """Configure models based on available VRAM."""
@@ -205,7 +297,44 @@ class FramePackModels:
             self.vae.to(gpu)
             self.transformer.to(gpu)
 
-    def prepare_for_inference(self, gpu_memory_preservation, use_teacache, steps, rel_l1_thresh=0.15):
+    def reload_transformer(self, lora_file=None, lora_multiplier=0.8, fp8_optimization=False):
+        """
+        Reload the transformer model with new LoRA and FP8 settings.
+        
+        Args:
+            lora_file: Path to LoRA file to merge into the model
+            lora_multiplier: Multiplier for LoRA weights
+            fp8_optimization: Whether to apply FP8 optimization
+            
+        Returns:
+            True if the model was reloaded, False if no changes were needed
+        """
+        # Check if we need to reload the model
+        model_changed = (
+            lora_file != self.previous_lora_file or
+            lora_multiplier != self.previous_lora_multiplier or
+            fp8_optimization != self.previous_fp8_optimization
+        )
+        
+        if not model_changed:
+            print("No changes to transformer model settings detected, skipping reload")
+            return False
+            
+        print("Reloading transformer with new settings...")
+        
+        # Load the transformer with new settings
+        self.transformer = self._load_transformer(lora_file, lora_multiplier, fp8_optimization)
+        
+        # Configure model based on VRAM availability
+        if not self.high_vram:
+            DynamicSwapInstaller.install_model(self.transformer, device=gpu)
+        else:
+            self.transformer.to(gpu)
+            
+        return True
+    
+    def prepare_for_inference(self, gpu_memory_preservation, use_teacache, steps, rel_l1_thresh=0.15, 
+                             lora_file=None, lora_multiplier=0.8, fp8_optimization=False):
         """
         Prepare models for inference.
         
@@ -214,8 +343,14 @@ class FramePackModels:
             use_teacache: Whether to use TeaCache for acceleration
             steps: Number of inference steps
             rel_l1_thresh: Threshold for TeaCache relative L1 distance (lower = faster but lower quality)
-            enable_optimization: Whether to enable PyTorch optimizations (Flash Attention, BFloat16)
+            lora_file: Path to LoRA file to merge into the model
+            lora_multiplier: Multiplier for LoRA weights
+            fp8_optimization: Whether to apply FP8 optimization
         """
+        # Check if we need to reload the transformer with new settings
+        if lora_file is not None or fp8_optimization:
+            self.reload_transformer(lora_file, lora_multiplier, fp8_optimization)
+        
         if not self.high_vram:
             # Clean up memory before loading transformer
             unload_complete_models()
