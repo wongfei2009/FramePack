@@ -391,6 +391,6 @@ class FramePackModels:
             self.transformer.initialize_teacache(enable_teacache=False)
             print("TeaCache disabled as per user request")
             
-        # Apply additional inference optimizations
-        optimize_for_inference(self.transformer, high_vram=self.high_vram)
+        # Apply additional inference optimizations, passing the fp8_optimization flag
+        optimize_for_inference(self.transformer, high_vram=self.high_vram, fp8_optimization=fp8_optimization)
     

@@ -83,25 +83,27 @@ def configure_teacache(transformer, vram_gb, steps=25, rel_l1_thresh=None):
     
     return transformer
 
-def optimize_for_inference(transformer, high_vram=False):
+def optimize_for_inference(transformer, high_vram=False, fp8_optimization=False):
     """
     Apply potentially beneficial optimizations for inference, assuming the model
     is already loaded in the desired precision (e.g., BF16).
 
     Optimizations applied:
     - Enables TF32 for matrix multiplications on compatible hardware.
-    - Attempts to enable PyTorch JIT kernel fusion.
+    - Attempts to enable PyTorch JIT kernel fusion (unless fp8_optimization is True).
     - Applies model-specific high-VRAM optimizations if available.
 
     Args:
         transformer: The transformer model to optimize.
-        high_vram: Boolean indicating if high VRAM is available.    
+        high_vram: Boolean indicating if high VRAM is available.
+        fp8_optimization: Boolean indicating if FP8 optimization is applied. 
+                         JIT Fusion will be disabled when this is True.
 
     Returns:
         The potentially optimized transformer model.
     """
     # Debug info
-    print(f"optimize_for_inference called with high_vram={high_vram}")
+    print(f"optimize_for_inference called with high_vram={high_vram}, fp8_optimization={fp8_optimization}")
     print(f"PyTorch version: {torch.__version__}")
 
     optimizations_applied = []
@@ -122,36 +124,39 @@ def optimize_for_inference(transformer, high_vram=False):
         except Exception as e:
             print(f"Warning: Could not enable TF32. Error: {e}")
 
-    # 2. Enable kernel fusion optimizations
+    # 2. Enable kernel fusion optimizations (only if FP8 optimization is not enabled)
     # Attempts to fuse small operations into larger kernels to reduce overhead.
     # Uses internal PyTorch JIT flags, which might change across versions.
-    try:
-        fused_kernels_enabled = False
-        # Check if JIT features are available
-        if hasattr(torch, '_C'):
-            if hasattr(torch._C, '_jit_set_profiling_executor') and hasattr(torch._C, '_jit_set_profiling_mode'):
-                torch._C._jit_set_profiling_executor(True)
-                torch._C._jit_set_profiling_mode(True)
-                fused_kernels_enabled = True
-                print("Enabled JIT profiling executor and mode for fusion.")
-            if hasattr(torch._C, '_jit_override_can_fuse_on_cpu'):
-                torch._C._jit_override_can_fuse_on_cpu(True)
-                fused_kernels_enabled = True
-                print("Enabled CPU kernel fusion override.")
-            if hasattr(torch._C, '_jit_override_can_fuse_on_gpu'):
-                torch._C._jit_override_can_fuse_on_gpu(True)
-                fused_kernels_enabled = True
-                print("Enabled GPU kernel fusion override.")
+    if not fp8_optimization:
+        try:
+            fused_kernels_enabled = False
+            # Check if JIT features are available
+            if hasattr(torch, '_C'):
+                if hasattr(torch._C, '_jit_set_profiling_executor') and hasattr(torch._C, '_jit_set_profiling_mode'):
+                    torch._C._jit_set_profiling_executor(True)
+                    torch._C._jit_set_profiling_mode(True)
+                    fused_kernels_enabled = True
+                    print("Enabled JIT profiling executor and mode for fusion.")
+                if hasattr(torch._C, '_jit_override_can_fuse_on_cpu'):
+                    torch._C._jit_override_can_fuse_on_cpu(True)
+                    fused_kernels_enabled = True
+                    print("Enabled CPU kernel fusion override.")
+                if hasattr(torch._C, '_jit_override_can_fuse_on_gpu'):
+                    torch._C._jit_override_can_fuse_on_gpu(True)
+                    fused_kernels_enabled = True
+                    print("Enabled GPU kernel fusion override.")
 
-        if fused_kernels_enabled:
-            optimizations_applied.append("Kernel Fusion")
-        else:
-             print("Could not find JIT fusion settings (might be unavailable in this PyTorch version).")
+            if fused_kernels_enabled:
+                optimizations_applied.append("Kernel Fusion")
+            else:
+                 print("Could not find JIT fusion settings (might be unavailable in this PyTorch version).")
 
-    except Exception as e:
-        print(f"Warning: Could not enable kernel fusion settings. Error: {e}")
-        # Optionally uncomment traceback for debugging:
-        # traceback.print_exc()
+        except Exception as e:
+            print(f"Warning: Could not enable kernel fusion settings. Error: {e}")
+            # Optionally uncomment traceback for debugging:
+            # traceback.print_exc()
+    else:
+        print("JIT Fusion disabled because FP8 optimization is enabled.")
 
     # 3. Apply High VRAM specific optimizations (if the model supports it)
     # This depends on the specific transformer implementation having this method.
