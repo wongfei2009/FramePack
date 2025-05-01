@@ -559,6 +559,8 @@ def create_ui(models, stream):
         border-color: #ced4da !important;
         color: #212529 !important;
     }
+    
+
     .save-status {
         margin: 5px 0 15px 0 !important;
         padding: 5px 10px !important;
@@ -1028,11 +1030,22 @@ def create_ui(models, stream):
                                 info="Controls how strongly the end frame influences the video. Lower values reduce impact."
                             )
                                                         
-                            lora_file = gr.File(
-                                label="LoRA File", 
-                                file_count="single", 
-                                type="filepath",
-                                # Note: Gradio 5.23.0 doesn't support info in File component, so using a separate Markdown
+                            # Import the lora file utils
+                            from utils.lora_file_utils import list_lora_files
+                            
+                            # Get available LoRA files
+                            lora_file_options = list_lora_files()
+                            lora_file_choices = ["None"] + [lora["name"] for lora in lora_file_options]
+                            
+                            # Store LoRA path mapping for lookup
+                            lora_file_map = {lora["name"]: lora["path"] for lora in lora_file_options}
+                            
+                            # Simple LoRA selection dropdown (no refresh button)
+                            lora_dropdown = gr.Dropdown(
+                                label="Select LoRA",
+                                choices=lora_file_choices,
+                                value="None",
+                                info="Select a LoRA from local_models/lora directory"
                             )
 
                             lora_multiplier = gr.Slider(
@@ -1043,6 +1056,9 @@ def create_ui(models, stream):
                                 step=0.1,
                                 info="Strength of the LoRA effect. Higher values make the LoRA more prominent."
                             )
+                            
+                            # Hidden state to store the current LoRA path
+                            lora_path_state = gr.State(None)
                     
                     # Add buttons at the bottom
                     with gr.Row(elem_classes="settings-buttons-container"):
@@ -1069,7 +1085,7 @@ def create_ui(models, stream):
         # Define process function
         def process(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                     steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
-                    keep_section_videos, end_frame_strength, enable_section_controls, fp8_optimization, lora_file, 
+                    keep_section_videos, end_frame_strength, enable_section_controls, fp8_optimization, lora_path, 
                     lora_multiplier, section_settings=None):
             """
             Process the video generation request.
@@ -1114,7 +1130,7 @@ def create_ui(models, stream):
                 input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
                 keep_section_videos, end_frame_strength, processed_section_settings,
-                lora_file, lora_multiplier, fp8_optimization,
+                lora_path, lora_multiplier, fp8_optimization,
                 models, stream
             )
 
@@ -1212,13 +1228,39 @@ Video generation process has finished successfully."""
                     outputs=[section_settings]
                 )
         
-        # Connect start button with all inputs
+        # Define function to handle LoRA dropdown changes
+        def update_lora_path(dropdown_value):
+            """
+            Update the LoRA path based on dropdown selection
+            
+            Args:
+                dropdown_value (str): Selected value from dropdown
+                
+            Returns:
+                str or None: Path to the selected LoRA file or None
+            """
+            # If "None" is selected, clear the LoRA path
+            if dropdown_value == "None":
+                return None
+                
+            # Otherwise, use the selected LoRA
+            selected_path = lora_file_map.get(dropdown_value, None)
+            return selected_path
+        
+        # Connect LoRA dropdown to update event
+        lora_dropdown.change(
+            fn=update_lora_path,
+            inputs=[lora_dropdown],
+            outputs=[lora_path_state]
+        )
+        
+        # Connect start button with all inputs (using lora_path_state directly)
         start_button.click(
             fn=process,
             inputs=[
                 input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
-                keep_section_videos, end_frame_strength, enable_section_controls, fp8_optimization, lora_file, 
+                keep_section_videos, end_frame_strength, enable_section_controls, fp8_optimization, lora_path_state, 
                 lora_multiplier, section_settings
             ],
             outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button]
@@ -1254,7 +1296,7 @@ Video generation process has finished successfully."""
                                use_teacache_val, teacache_thresh_val, steps_val, gs_val,
                                gpu_memory_val, latent_window_val, mp4_crf_val,
                                prompt_val, n_prompt_val, cfg_val, rs_val, end_frame_strength_val,
-                               fp8_optimization_val, lora_multiplier_val):
+                               fp8_optimization_val, lora_multiplier_val, lora_dropdown_val):
             """Save all current parameter values."""
             params_to_save = {
                 "seed": seed_val,
@@ -1273,7 +1315,8 @@ Video generation process has finished successfully."""
                 "rs": rs_val,
                 "end_frame_strength": end_frame_strength_val,
                 "fp8_optimization": fp8_optimization_val,
-                "lora_multiplier": lora_multiplier_val
+                "lora_multiplier": lora_multiplier_val,
+                "lora_dropdown": lora_dropdown_val
             }
             
             # Log the parameters we're saving
@@ -1311,6 +1354,7 @@ Video generation process has finished successfully."""
                 end_frame_strength: defaults["end_frame_strength"],
                 fp8_optimization: defaults.get("fp8_optimization", False),
                 lora_multiplier: defaults.get("lora_multiplier", 0.8),
+                lora_dropdown: defaults.get("lora_dropdown", "None"),
                 save_status: gr.update(value="✓ Parameters restored to default values", visible=True)
             }
             
@@ -1384,7 +1428,8 @@ Video generation process has finished successfully."""
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
                 mp4_crf, prompt, n_prompt,
-                cfg, rs, end_frame_strength, save_status
+                cfg, rs, end_frame_strength, 
+                fp8_optimization, lora_multiplier, lora_dropdown, save_status
             ],
             show_progress=False
         )
@@ -1420,7 +1465,7 @@ Video generation process has finished successfully."""
                 gpu_memory_preservation, latent_window_size,
                 mp4_crf, prompt, n_prompt,
                 cfg, rs, end_frame_strength,
-                fp8_optimization, lora_multiplier
+                fp8_optimization, lora_multiplier, lora_dropdown
             ],
             outputs=[save_status]
         )
@@ -1444,7 +1489,7 @@ Video generation process has finished successfully."""
                 gpu_memory_preservation, latent_window_size,
                 mp4_crf, prompt, n_prompt,
                 cfg, rs, end_frame_strength,
-                fp8_optimization, lora_multiplier, save_status
+                fp8_optimization, lora_multiplier, lora_dropdown, save_status
             ]
         )
         
@@ -1472,13 +1517,23 @@ Video generation process has finished successfully."""
             teacache_thresh, steps, gs, gpu_memory_preservation,
             latent_window_size, mp4_crf, prompt,
             n_prompt, cfg, rs, end_frame_strength,
-            fp8_optimization, lora_multiplier
+            fp8_optimization, lora_multiplier, lora_dropdown
         ]
 
         def load_saved_params():
             """Loads parameters from config and returns them in the correct order."""
             logger.info("Reloading parameters for UI on page load...")
             params = param_config.get_all_parameters()
+            
+            # Get the saved LoRA dropdown value
+            lora_dropdown_value = params.get("lora_dropdown", "None")
+            
+            # Validate that the saved value is in the current dropdown options
+            # This prevents errors if saved LoRA files have been removed
+            if lora_dropdown_value not in ["None"] + [lora["name"] for lora in lora_file_options]:
+                logger.warning(f"Saved LoRA selection '{lora_dropdown_value}' not found in available options. Using 'None'.")
+                lora_dropdown_value = "None"
+            
             # Return values in the *exact same order* as components_to_load list
             return [
                 params.get("seed", 31337),
@@ -1497,13 +1552,35 @@ Video generation process has finished successfully."""
                 params.get("rs", 0.0),
                 params.get("end_frame_strength", 1.0),
                 params.get("fp8_optimization", False),
-                params.get("lora_multiplier", 0.8)
+                params.get("lora_multiplier", 0.8),
+                lora_dropdown_value
             ]
 
+        # When the UI loads, it will set the LoRA dropdown value based on the saved parameters
+        # We need to also initialize the lora_path_state with the correct path
+        def initialize_ui():
+            """Initialize UI components and states after loading parameters"""
+            # First, load all parameters
+            params_values = load_saved_params()
+            
+            # Extract the LoRA dropdown value (which is the last item)
+            lora_dropdown_value = params_values[-1]
+            
+            # Convert the dropdown value to a path
+            path = None
+            if lora_dropdown_value != "None":
+                path = lora_file_map.get(lora_dropdown_value, None)
+                
+            # Return all parameter values plus the path for lora_path_state
+            return params_values + [path]
+        
+        # Add lora_path_state to components that need initialization
+        initialization_outputs = components_to_load + [lora_path_state]
+        
         block.load(
-            fn=load_saved_params,
+            fn=initialize_ui,
             inputs=[],
-            outputs=components_to_load,
+            outputs=initialization_outputs,
             show_progress=False # Optional: hide progress indicator for this load
         )
         # --- End of .load() event handler ---

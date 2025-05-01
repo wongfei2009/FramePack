@@ -43,6 +43,7 @@ DEFAULT_PARAMETERS = {
     # FP8 and LoRA parameters
     "fp8_optimization": False,  # Enable FP8 quantization of transformer weights
     "lora_multiplier": 0.8,     # Multiplier for LoRA weights when applied
+    "lora_dropdown": "None",    # Selected LoRA file (None or filename)
     
     # Other parameters as needed
     "prompt": "",
