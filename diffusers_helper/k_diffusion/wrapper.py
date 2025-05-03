@@ -22,12 +22,17 @@ def fm_wrapper(transformer, t_scale=1000.0):
         cfg_scale = extra_args['cfg_scale']
         cfg_rescale = extra_args['cfg_rescale']
         concat_latent = extra_args['concat_latent']
+        # Extract the movement_scale parameter (default to 0.1 if not provided)
+        movement_scale = extra_args.get('movement_scale', 0.1)
 
         original_dtype = x.dtype
         sigma = sigma.float()
 
         x = x.to(dtype)
         timestep = (sigma * t_scale).to(dtype)
+
+        # Store movement_scale at the top level instead of inside positive/negative
+        # This prevents it from being passed to the transformer model
 
         if concat_latent is None:
             hidden_states = x

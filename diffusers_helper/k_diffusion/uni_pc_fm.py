@@ -18,6 +18,8 @@ class FlowMatchUniPC:
         self.model = model
         self.variant = variant
         self.extra_args = extra_args
+        # Extract movement_scale from extra_args (default to 0.1 if not specified)
+        self.movement_scale = extra_args.get('movement_scale', 0.1)
 
     def model_fn(self, x, t):
         return self.model(x, t, **self.extra_args)
@@ -96,6 +98,9 @@ class FlowMatchUniPC:
             pred_res = 0
 
         x_t = x_t_ - expand_dims(B_h, dims) * pred_res
+        
+        # We don't need to pass movement_scale to the model
+        # It's used directly in the sample method
         model_t = self.model_fn(x_t, t)
 
         if D1s is not None:
@@ -113,6 +118,23 @@ class FlowMatchUniPC:
         model_prev_list, t_prev_list = [], []
         for i in trange(len(sigmas) - 1, disable=disable_pbar):
             vec_t = sigmas[i].expand(x.shape[0])
+
+            # For i=5 (25 steps), apply the movement effect directly here
+            if i == 5:  # for 25 steps, empirical value
+                import math
+                
+                # Get movement_scale from extra_args, defaulting to 0.1 if not provided
+                movement_scale = self.movement_scale
+                
+                # move along H/W axis with sin curve
+                dim = -1  # -2 for H, -1 for W
+                f = x.shape[2]
+                size = x.shape[dim]
+                
+                for j in range(f):
+                    amount = math.sin((j / f) * math.pi * 2) * size * movement_scale
+                    print(f"amount: {amount}, j: {j}, f: {f}, size: {size}")
+                    x[:, :, j, :, :] = torch.roll(x[:, :, j, :, :], int(amount), dims=dim)
 
             if i == 0:
                 model_prev_list = [self.model_fn(x, vec_t)]
@@ -137,6 +159,10 @@ class FlowMatchUniPC:
                 if hasattr(model_prev_list[-1], 'cache_info'):
                     callback_data['cache_info'] = getattr(model_prev_list[-1], 'cache_info')
                 
+                # Pass the movement_scale to the callback
+                callback_data['movement_scale'] = self.movement_scale
+                
+                # Call the callback with the data
                 callback(callback_data)
 
         return model_prev_list[-1]

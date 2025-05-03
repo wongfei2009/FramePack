@@ -40,7 +40,7 @@ from diffusers_helper.gradio.progress_bar import make_progress_bar_html
 @torch.no_grad()
 def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
            steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
-           keep_section_videos, end_frame_strength, section_settings=None, lora_path=None, lora_multiplier=0.8, 
+           keep_section_videos, end_frame_strength, movement_scale, section_settings=None, lora_path=None, lora_multiplier=0.8, 
            fp8_optimization=False, models=None, stream=None, outputs_folder='./outputs/'):
     """
     Worker function for generating videos with FramePack.
@@ -619,6 +619,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
                 clean_latents_4x=clean_latents_4x,
                 clean_latent_4x_indices=clean_latent_4x_indices,
                 callback=callback,
+                movement_scale=movement_scale,
             )
 
             # Handle last section differently

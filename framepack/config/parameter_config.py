@@ -39,6 +39,7 @@ DEFAULT_PARAMETERS = {
     "enable_optimization": False,  # PyTorch optimizations for attention and BFloat16 conversion
     "mp4_crf": 16,
     "end_frame_strength": 0.5,  # EndFrame influence strength (1.0 = normal, lower values reduce influence)
+    "movement_scale": 0.1,      # Controls the amount of camera movement in generated videos (0.0-1.0)
     
     # FP8 and LoRA parameters
     "fp8_optimization": False,  # Enable FP8 quantization of transformer weights

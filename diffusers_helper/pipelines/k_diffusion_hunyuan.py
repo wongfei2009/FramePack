@@ -52,6 +52,7 @@ def sample_hunyuan(
         negative_kwargs=None,
         callback=None,
         has_negative_prompt=None,  # Add parameter for explicit negative prompt flag
+        movement_scale=0.1,        # Add parameter for camera movement scale
         **kwargs,
 ):
     device = device or transformer.device
@@ -98,6 +99,7 @@ def sample_hunyuan(
         cfg_rescale=guidance_rescale,
         concat_latent=concat_latent,
         has_negative_prompt=has_negative_prompt,
+        movement_scale=movement_scale,  # Add movement_scale parameter at the top level
         positive=dict(
             pooled_projections=prompt_poolers,
             encoder_hidden_states=prompt_embeds,

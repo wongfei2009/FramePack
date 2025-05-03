@@ -1029,6 +1029,13 @@ def create_ui(models, stream):
                                 value=params.get("end_frame_strength", 0.50), step=0.01,
                                 info="Controls how strongly the end frame influences the video. Lower values reduce impact."
                             )
+                            
+                            movement_scale = gr.Slider(
+                                label="Camera Movement", 
+                                minimum=0.0, maximum=0.5, 
+                                value=params.get("movement_scale", 0.1), step=0.01,
+                                info="Controls camera movement effect. Higher values create more dramatic motion, 0 disables movement."
+                            )
                                                         
                             # Import the lora file utils
                             from utils.lora_file_utils import list_lora_files
@@ -1085,7 +1092,7 @@ def create_ui(models, stream):
         # Define process function
         def process(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                     steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
-                    keep_section_videos, end_frame_strength, enable_section_controls, fp8_optimization, lora_path, 
+                    keep_section_videos, end_frame_strength, movement_scale, enable_section_controls, fp8_optimization, lora_path, 
                     lora_multiplier, section_settings=None):
             """
             Process the video generation request.
@@ -1129,7 +1136,7 @@ def create_ui(models, stream):
                 worker, 
                 input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
-                keep_section_videos, end_frame_strength, processed_section_settings,
+                keep_section_videos, end_frame_strength, movement_scale, processed_section_settings,
                 lora_path, lora_multiplier, fp8_optimization,
                 models, stream
             )
@@ -1260,7 +1267,7 @@ Video generation process has finished successfully."""
             inputs=[
                 input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
-                keep_section_videos, end_frame_strength, enable_section_controls, fp8_optimization, lora_path_state, 
+                keep_section_videos, end_frame_strength, movement_scale, enable_section_controls, fp8_optimization, lora_path_state, 
                 lora_multiplier, section_settings
             ],
             outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button]
@@ -1296,7 +1303,7 @@ Video generation process has finished successfully."""
                                use_teacache_val, teacache_thresh_val, steps_val, gs_val,
                                gpu_memory_val, latent_window_val, mp4_crf_val,
                                prompt_val, n_prompt_val, cfg_val, rs_val, end_frame_strength_val,
-                               fp8_optimization_val, lora_multiplier_val, lora_dropdown_val):
+                               movement_scale_val, fp8_optimization_val, lora_multiplier_val, lora_dropdown_val):
             """Save all current parameter values."""
             params_to_save = {
                 "seed": seed_val,
@@ -1314,6 +1321,7 @@ Video generation process has finished successfully."""
                 "cfg": cfg_val,
                 "rs": rs_val,
                 "end_frame_strength": end_frame_strength_val,
+                "movement_scale": movement_scale_val,
                 "fp8_optimization": fp8_optimization_val,
                 "lora_multiplier": lora_multiplier_val,
                 "lora_dropdown": lora_dropdown_val
@@ -1352,6 +1360,7 @@ Video generation process has finished successfully."""
                 cfg: defaults["cfg"],
                 rs: defaults["rs"],
                 end_frame_strength: defaults["end_frame_strength"],
+                movement_scale: defaults["movement_scale"],
                 fp8_optimization: defaults.get("fp8_optimization", False),
                 lora_multiplier: defaults.get("lora_multiplier", 0.8),
                 lora_dropdown: defaults.get("lora_dropdown", "None"),
@@ -1428,7 +1437,7 @@ Video generation process has finished successfully."""
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
                 mp4_crf, prompt, n_prompt,
-                cfg, rs, end_frame_strength, 
+                cfg, rs, end_frame_strength, movement_scale,
                 fp8_optimization, lora_multiplier, lora_dropdown, save_status
             ],
             show_progress=False
@@ -1464,7 +1473,7 @@ Video generation process has finished successfully."""
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
                 mp4_crf, prompt, n_prompt,
-                cfg, rs, end_frame_strength,
+                cfg, rs, end_frame_strength, movement_scale,
                 fp8_optimization, lora_multiplier, lora_dropdown
             ],
             outputs=[save_status]
@@ -1488,7 +1497,7 @@ Video generation process has finished successfully."""
                 use_teacache, teacache_thresh, steps, gs,
                 gpu_memory_preservation, latent_window_size,
                 mp4_crf, prompt, n_prompt,
-                cfg, rs, end_frame_strength,
+                cfg, rs, end_frame_strength, movement_scale,
                 fp8_optimization, lora_multiplier, lora_dropdown, save_status
             ]
         )
@@ -1516,7 +1525,7 @@ Video generation process has finished successfully."""
             seed, total_latent_sections, resolution_scale, use_teacache,
             teacache_thresh, steps, gs, gpu_memory_preservation,
             latent_window_size, mp4_crf, prompt,
-            n_prompt, cfg, rs, end_frame_strength,
+            n_prompt, cfg, rs, end_frame_strength, movement_scale,
             fp8_optimization, lora_multiplier, lora_dropdown
         ]
 
@@ -1551,6 +1560,7 @@ Video generation process has finished successfully."""
                 params.get("cfg", 1.0),
                 params.get("rs", 0.0),
                 params.get("end_frame_strength", 1.0),
+                params.get("movement_scale", 0.1),
                 params.get("fp8_optimization", False),
                 params.get("lora_multiplier", 0.8),
                 lora_dropdown_value
