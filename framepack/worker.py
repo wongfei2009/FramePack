@@ -325,31 +325,26 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
         rnd = torch.Generator("cpu").manual_seed(seed)
         num_frames = latent_window_size * 4 - 3
 
-        # Initialize history buffers
+        # Initialize history buffers for forward-only sampling
         history_latents = torch.zeros(
-            size=(1, 16, 1 + 2 + 16, height // 8, width // 8), 
+            size=(1, 16, 16 + 2 + 1, height // 8, width // 8), 
             dtype=torch.float32
         ).cpu()
         history_pixels = None
-        total_generated_latent_frames = 0
 
-        # Calculate latent padding sequence
-        if total_latent_sections > 4:
-            # Use an improved padding sequence for longer videos
-            latent_paddings = [3] + [2] * (total_latent_sections - 3) + [1, 0]
-        else:
-            # Convert range to list to avoid iterator issues
-            latent_paddings = list(reversed(range(total_latent_sections)))
+        # Add start latent to history for forward-only approach
+        history_latents = torch.cat([history_latents, start_latent.to(history_latents)], dim=2)
+        total_generated_latent_frames = 1
 
         # Generate video in progressive sections
-        # Define helper function for getting section-specific prompts
-        def get_section_prompt(i_section, section_map, default_llama_vec, default_clip_pooler, default_mask):
-            """Get section-specific prompt encoding if available"""
+        # Define helper function for getting section-specific prompts - adapted for forward-only approach
+        def get_section_prompt(section_index, section_map, default_llama_vec, default_clip_pooler, default_mask):
+            """Get section-specific prompt encoding if available for forward-only sampling"""
             if not section_map:
                 return default_llama_vec, default_clip_pooler, default_mask
                 
-            # Find the section <= current section. First, get all valid section numbers
-            valid_keys = [k for k in section_map.keys() if k <= i_section]
+            # Find the section <= current section. This works the same for forward-only approach
+            valid_keys = [k for k in section_map.keys() if k <= section_index]
             if not valid_keys:
                 return default_llama_vec, default_clip_pooler, default_mask
                 
@@ -362,7 +357,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
                 return default_llama_vec, default_clip_pooler, default_mask
                 
             # Encode section-specific prompt
-            print(f"Using prompt from section {use_key} for section {i_section}")
+            print(f"Using prompt from section {use_key} for section {section_index}")
             print(f"Section prompt: {section_prompt_text[:50]}...")
             
             if not models.high_vram:
@@ -389,23 +384,19 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
                 print(f"Error encoding section prompt: {e}")
                 return default_llama_vec, default_clip_pooler, default_mask
         
-        # Define helper function for getting section-specific latents
-        def get_section_latent(i_section, section_map, section_latents, default_latent):
-            """Get the appropriate latent for the current section"""
+        # Define helper function for getting section-specific latents - adapted for forward-only approach
+        def get_section_latent(section_index, section_map, section_latents, default_latent):
+            """Get the appropriate latent for the current section in forward-only sampling"""
             if not section_map or not section_latents or len(section_latents) == 0:
                 return default_latent
             
             try:
-                # Calculate the total number of sections
-                total_sections = len(latent_paddings)
-                
-                # Find the nearest section number <= (total_sections - current section)
-                reversed_index = total_sections - i_section - 1
-                valid_keys = [k for k in section_latents.keys() if k <= reversed_index]
+                # Find the nearest section number <= current section index
+                valid_keys = [k for k in section_latents.keys() if k <= section_index]
                 
                 if valid_keys:
                     use_key = max(valid_keys)  # Get the closest previous section
-                    print(f"Using image from section {use_key} for section {i_section} (reversed index: {reversed_index})")
+                    print(f"Using image from section {use_key} for section {section_index}")
                     section_latent = section_latents[use_key]
                     print(f"Section latent shape: {section_latent.shape}, min: {section_latent.min().item():.4f}, max: {section_latent.max().item():.4f}")
                     return section_latent
@@ -414,16 +405,11 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
                 
             return default_latent
         
-        # Generate video in progressive sections
+        # Generate video in progressive sections with forward-only approach
         output_filename = None
-        for i_section, latent_padding in enumerate(latent_paddings):
-            is_first_section = i_section == 0
-            is_last_section = latent_padding == 0
-            use_end_latent = is_last_section and end_frame is not None
-            latent_padding_size = latent_padding * latent_window_size
-            
+        for section_index in range(total_latent_sections):
             # Log section information
-            print(f"\n== Processing section {i_section}/{len(latent_paddings)-1} (padding: {latent_padding}) ==")
+            print(f"\n== Processing section {section_index}/{total_latent_sections-1} ==")
 
             # Check for user termination
             if stream.input_queue.top() == 'end':
@@ -433,12 +419,9 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
                 stream.output_queue.push(('end', None))
                 return output_filename
 
-            print(f'latent_padding_size = {latent_padding_size}, is_last_section = {is_last_section}, is_first_section = {is_first_section}')
-            
-            # If we have an end frame and this is the first section, add it to history latents
-            if is_first_section and end_frame_latent is not None:
-                print("Adding end frame to history latents for first section")
-                # Apply EndFrame influence strength if not default value
+            # If we have an end frame and this is the first section, update it with appropriate strength
+            if section_index == 0 and end_frame_latent is not None:
+                print("Applying end frame influence for forward-only sampling")
                 if end_frame_strength != 1.0:
                     print(f"Applying EndFrame influence at {end_frame_strength:.2f}x strength")
                     modified_end_frame_latent = end_frame_latent * end_frame_strength
@@ -447,33 +430,30 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
                     # Normal processing with full influence
                     history_latents[:, :, 0:1, :, :] = end_frame_latent
 
-            # Prepare indices for section generation
-            # Prepare indices for section generation
-            indices = torch.arange(0, sum([1, latent_padding_size, latent_window_size, 1, 2, 16])).unsqueeze(0)
-            clean_latent_indices_pre, _, latent_indices, clean_latent_indices_post, clean_latent_2x_indices, clean_latent_4x_indices = indices.split([1, latent_padding_size, latent_window_size, 1, 2, 16], dim=1)
-            clean_latent_indices = torch.cat([clean_latent_indices_pre, clean_latent_indices_post], dim=1)
+            # Prepare indices for forward-only sampling approach
+            indices = torch.arange(0, sum([1, 16, 2, 1, latent_window_size])).unsqueeze(0)
+            clean_latent_indices_start, clean_latent_4x_indices, clean_latent_2x_indices, clean_latent_1x_indices, latent_indices = indices.split([1, 16, 2, 1, latent_window_size], dim=1)
+            clean_latent_indices = torch.cat([clean_latent_indices_start, clean_latent_1x_indices], dim=1)
+            
+            # Get clean latents from history
+            clean_latents_4x, clean_latents_2x, clean_latents_1x = history_latents[:, :, -sum([16, 2, 1]):, :, :].split([16, 2, 1], dim=2)
+            clean_latents = torch.cat([start_latent.to(history_latents), clean_latents_1x], dim=2)
 
-            # Log section processing
-            print(f"\n== Processing section {i_section}/{len(latent_paddings)-1} (padding: {latent_padding}) ==")
-            print(f"  - First section: {is_first_section}")
-            print(f"  - Last section: {is_last_section}")
-            print(f"  - Use end latent: {use_end_latent}")
-            print(f"  - Latent padding size: {latent_padding_size}")
+            # Log section processing for forward-only approach
+            print(f"\n== Processing section {section_index}/{total_latent_sections-1} ==")
+            print(f"  - First section: {section_index == 0}")
+            print(f"  - Last section: {section_index == total_latent_sections-1}")
+            print(f"  - Use end latent: {section_index == 0 and end_frame is not None}")
             
             # Get section-specific latent if available
-            current_latent = get_section_latent(i_section, section_map, section_latents, start_latent)
-            print(f"  - Using latent for section {i_section}: shape {current_latent.shape}")
+            current_latent = get_section_latent(section_index, section_map, section_latents, start_latent)
+            print(f"  - Using latent for section {section_index}: shape {current_latent.shape}")
             
             # Get section-specific prompt if available
             current_llama_vec, current_clip_pooler, current_mask = get_section_prompt(
-                i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask
+                section_index, section_map, llama_vec, clip_l_pooler, llama_attention_mask
             )
-            print(f"  - Using prompt for section {i_section}: shape {current_llama_vec.shape}")
-            
-            # Prepare clean latents using the current latent (which might be section-specific)
-            clean_latents_pre = current_latent.to(history_latents)
-            clean_latents_post, clean_latents_2x, clean_latents_4x = history_latents[:, :, :1 + 2 + 16, :, :].split([1, 2, 16], dim=2)
-            clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
+            print(f"  - Using prompt for section {section_index}: shape {current_llama_vec.shape}")
 
             # Prepare model for inference with custom threshold and LoRA/FP8 if specified
             models.prepare_for_inference(
@@ -622,13 +602,9 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
                 movement_scale=movement_scale,
             )
 
-            # Handle last section differently
-            if is_last_section:
-                generated_latents = torch.cat([start_latent.to(generated_latents), generated_latents], dim=2)
-
-            # Update counters and history
+            # Update counters and history for forward-only approach
             total_generated_latent_frames += int(generated_latents.shape[2])
-            history_latents = torch.cat([generated_latents.to(history_latents), history_latents], dim=2)
+            history_latents = torch.cat([history_latents, generated_latents.to(history_latents)], dim=2)
 
             # Offload transformer and load VAE for decoding
             if not models.high_vram:
@@ -666,25 +642,22 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
                     performance_tracker.track_cache_stats(new_hits, new_misses, new_queries)
                     print(f"Final sampling TeaCache stats: +{new_hits}/{new_queries} hits")
             
-            # Process latents for this section
-            real_history_latents = history_latents[:, :, :total_generated_latent_frames, :, :]
+            # Process latents for this section with forward-only approach
+            real_history_latents = history_latents[:, :, -total_generated_latent_frames:, :, :]
 
             # Track VAE decoding time
             performance_tracker.start_timer("vae_decode")
             performance_tracker.track_memory("before_vae_decode")
             
-            # Decode latents to pixels
+            # Decode latents to pixels with forward-only approach
             if history_pixels is None:
                 history_pixels = vae_decode(real_history_latents, models.vae).cpu()
             else:
-                section_latent_frames = (latent_window_size * 2 + 1) if is_last_section else (latent_window_size * 2)
+                section_latent_frames = latent_window_size * 2
                 overlapped_frames = latent_window_size * 4 - 3
 
-                current_pixels = vae_decode(
-                    real_history_latents[:, :, :section_latent_frames], 
-                    models.vae
-                ).cpu()
-                history_pixels = soft_append_bcthw(current_pixels, history_pixels, overlapped_frames)
+                current_pixels = vae_decode(real_history_latents[:, :, -section_latent_frames:], models.vae).cpu()
+                history_pixels = soft_append_bcthw(history_pixels, current_pixels, overlapped_frames)
                 
             vae_decode_time = performance_tracker.end_timer("vae_decode")
             performance_tracker.track_memory("after_vae_decode")
@@ -723,7 +696,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
             stream.output_queue.push(('file', output_filename))
 
             # Stop if this was the last section
-            if is_last_section:
+            if section_index == total_latent_sections - 1:
                 # Finish the sampling timer if still running
                 if hasattr(performance_tracker, "sampling_start"):
                     performance_tracker.end_timer("sampling")

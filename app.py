@@ -1,5 +1,7 @@
 """
-Main application entry point for FramePack.
+Main application entry point for FramePack-F1.
+
+FramePack-F1 features forward-only sampling with anti-drifting regulation.
 """
 
 import argparse

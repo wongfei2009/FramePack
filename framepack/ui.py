@@ -39,22 +39,23 @@ def create_ui(models, stream):
         secs = seconds % 60
         return f"{minutes}m{secs:.1f}s"
     
-    # Function to calculate section timing information
+    # Function to calculate section timing information for FramePack-F1 (forward-only)
     def calc_section_timing(section_index, latent_window_size):
-        """Calculate the time range for a specific section"""
+        """Calculate the time range for a specific section in forward-only sampling"""
         frames_per_section = latent_window_size * 4 - 3
+        # In FramePack-F1 (forward-only), sections are generated sequentially from the start
         start_time = (section_index * frames_per_section) / 24  # In seconds
         end_time = ((section_index + 1) * frames_per_section - 1) / 24  # In seconds
         return f"{format_time(start_time)} - {format_time(end_time)}"
     
-    # Define sample prompts
+    # Define sample prompts for FramePack-F1
     quick_prompts = [
-        'The character dances gracefully, with clear movements, full of charm.',
-        'The character does some simple body movements.',
+        'The girl dances gracefully, with clear movements, full of charm.',
+        'A character doing some simple body movements.',
         'The character walks gracefully, with clear movements, across the room.',
         'The character breathes calmly, with subtle body movements.',
-		'The character walks forward, gestures with hands, with natural posture.',	
-		'The character performs dynamic movements with energy and flowing motion.',	
+        'The character walks forward, gestures with hands, with natural posture.',
+        'The character performs dynamic movements with energy and flowing motion.',
     ]
     
     # Format quick prompts for dataset
@@ -657,7 +658,8 @@ def create_ui(models, stream):
     block = gr.Blocks(css=css, title="FramePack").queue() # Remove stateful=True
     
     with block:
-        gr.Markdown('# FramePack')
+        gr.Markdown('# FramePack-F1')
+        gr.Markdown('Advanced video generation with forward-only sampling and anti-drifting regulation for longer, more stable videos.')
         
         # Get saved parameters
         params = param_config.get_all_parameters()
@@ -892,7 +894,7 @@ def create_ui(models, stream):
                             progress_bar = gr.HTML('', elem_classes='no-generating-animation')
                         
                         gr.Markdown(
-                            'Note: Ending actions are generated before starting actions due to inverted sampling. If starting action is not visible yet, wait for more frames.',
+                            'Note: FramePack-F1 uses forward-only sampling for better stability and anti-drifting. Videos are generated progressively, one section at a time.',
                             elem_classes="info-text"
                         )
                 

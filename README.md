@@ -2,9 +2,9 @@
     <img src="https://github.com/user-attachments/assets/2cc030b4-87e1-40a0-b5bf-1b7d6b62820b" width="300">
 </p>
 
-# FramePack
+# FramePack-F1
 
-Official implementation and desktop software for ["Packing Input Frame Context in Next-Frame Prediction Models for Video Generation"](https://lllyasviel.github.io/frame_pack_gitpage/).
+Updated implementation with **forward-only sampling** and **anti-drifting regulation** for ["Packing Input Frame Context in Next-Frame Prediction Models for Video Generation"](https://lllyasviel.github.io/frame_pack_gitpage/).
 
 Links: [**Paper**](https://lllyasviel.github.io/frame_pack_gitpage/pack.pdf), [**Project Page**](https://lllyasviel.github.io/frame_pack_gitpage/)
 
@@ -17,6 +17,18 @@ FramePack can process a very large number of frames with 13B models even on lapt
 FramePack can be trained with a much larger batch size, similar to the batch size for image diffusion training.
 
 **Video diffusion, but feels like image diffusion.**
+
+## About FramePack-F1
+
+FramePack-F1 is an improved version of FramePack with the following key enhancements:
+
+1. **Forward-Only Sampling**: Uses a unidirectional approach to video generation that produces more consistent results.
+
+2. **Anti-Drifting Regulation**: The model is trained with a new regulation technique specifically designed to prevent drifting during longer video generations, leading to more stable content even in extended videos.
+
+3. **Optimized for Longer Videos**: F1 handles longer video generation better than the original model, maintaining content integrity over more frames.
+
+The optimizations in FramePack-F1 make it particularly well-suited for generating longer videos (30+ seconds) while maintaining consistent quality and reducing character drift.
 
 # Requirements
 
