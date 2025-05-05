@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 # Import mode settings
 from framepack.config.modes.video_mode_settings import MODE_TYPE_NORMAL
 
-# Default parameter values optimized for FramePack-F1
+# Default parameter values
 DEFAULT_PARAMETERS = {
     # Basic parameters
     "seed": 31337,
-    "total_latent_sections": 5,  # Increased for F1 to leverage anti-drifting capability
+    "total_latent_sections": 3,
     "resolution_scale": "Full (1x)",
     
     # Mode settings
@@ -31,14 +31,14 @@ DEFAULT_PARAMETERS = {
     "use_teacache": True,
     "teacache_thresh": 0.15,
     "steps": 25,
-    "gs": 10.0,  # Distilled CFG Scale optimized for F1
+    "gs": 10.0,  # Distilled CFG Scale
     "cfg": 1.0,
     "rs": 0.0,
     "gpu_memory_preservation": 6.0,
     "latent_window_size": 9,
     "enable_optimization": False,  # PyTorch optimizations for attention and BFloat16 conversion
     "mp4_crf": 16,
-    "end_frame_strength": 0.5,  # EndFrame influence in forward-only sampling
+    "end_frame_strength": 0.5,  # EndFrame influence strength (1.0 = normal, lower values reduce influence)
     "movement_scale": 0.1,      # Controls the amount of camera movement in generated videos (0.0-1.0)
     
     # FP8 and LoRA parameters

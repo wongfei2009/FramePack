@@ -216,10 +216,10 @@ class FramePackModels:
             torch.cuda.empty_cache()
             gc.collect()
         
-        # Load the F1 transformer model with forward-only sampling and anti-drifting
+        # Load the base transformer model
         transformer = load_model_locally_or_download(
             HunyuanVideoTransformer3DModelPacked, 
-            'lllyasviel/FramePack_F1_I2V_HY_20250503', 
+            'lllyasviel/FramePackI2V_HY', 
             torch_dtype=torch.bfloat16
         ).cpu()
         
