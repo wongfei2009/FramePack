@@ -41,7 +41,7 @@ from diffusers_helper.gradio.progress_bar import make_progress_bar_html
 def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
            steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
            keep_section_videos, end_frame_strength, movement_scale, section_settings=None, lora_path=None, lora_multiplier=0.8, 
-           fp8_optimization=False, models=None, stream=None, outputs_folder='./outputs/'):
+           fp8_optimization=False, one_frame_inference=False, models=None, stream=None, outputs_folder='./outputs/'):
     """
     Worker function for generating videos with FramePack.
     
@@ -333,13 +333,21 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
         history_pixels = None
         total_generated_latent_frames = 0
 
-        # Calculate latent padding sequence
-        if total_latent_sections > 4:
-            # Use an improved padding sequence for longer videos
-            latent_paddings = [3] + [2] * (total_latent_sections - 3) + [1, 0]
+        # One Frame Inference mode
+        if one_frame_inference:
+            print("One Frame Inference mode activated")
+            latent_paddings = [0]
+            total_latent_sections = 1
+            print(f"Set latent_paddings = {latent_paddings}, total_latent_sections = {total_latent_sections}")
+        # Regular video mode
         else:
-            # Convert range to list to avoid iterator issues
-            latent_paddings = list(reversed(range(total_latent_sections)))
+            # Calculate latent padding sequence
+            if total_latent_sections > 4:
+                # Use an improved padding sequence for longer videos
+                latent_paddings = [3] + [2] * (total_latent_sections - 3) + [1, 0]
+            else:
+                # Convert range to list to avoid iterator issues
+                latent_paddings = list(reversed(range(total_latent_sections)))
 
         # Generate video in progressive sections
         # Define helper function for getting section-specific prompts
@@ -452,6 +460,22 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
             indices = torch.arange(0, sum([1, latent_padding_size, latent_window_size, 1, 2, 16])).unsqueeze(0)
             clean_latent_indices_pre, _, latent_indices, clean_latent_indices_post, clean_latent_2x_indices, clean_latent_4x_indices = indices.split([1, latent_padding_size, latent_window_size, 1, 2, 16], dim=1)
             clean_latent_indices = torch.cat([clean_latent_indices_pre, clean_latent_indices_post], dim=1)
+            
+            # One Frame Inference mode - only process a single frame
+            if one_frame_inference:
+                # Use only the last index for a single frame
+                latent_indices = latent_indices[:, -1:]
+                print(f"One Frame Inference: latent_indices = {latent_indices}")
+                
+                # Clear the 2x and 4x references (necessary for one frame inference)
+                clean_latent_2x_indices = None
+                clean_latent_4x_indices = None
+                clean_latents_2x = None
+                clean_latents_4x = None
+                
+                # Set num_frames to 1
+                num_frames = 1
+                print(f"One Frame Inference: num_frames = {num_frames}")
 
             # Log section processing
             print(f"\n== Processing section {i_section}/{len(latent_paddings)-1} (padding: {latent_padding}) ==")
@@ -622,9 +646,13 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
                 movement_scale=movement_scale,
             )
 
-            # Handle last section differently
-            if is_last_section:
+            # Handle last section differently - but not in one frame mode
+            if is_last_section and not one_frame_inference:
                 generated_latents = torch.cat([start_latent.to(generated_latents), generated_latents], dim=2)
+            
+            # For one frame inference, print debug info
+            if one_frame_inference:
+                print(f"One Frame Inference: generated_latents.shape = {generated_latents.shape}")
 
             # Update counters and history
             total_generated_latent_frames += int(generated_latents.shape[2])
@@ -702,10 +730,18 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
                     print(f"Memory after section: current={current_mem:.2f}GB, peak={max_mem:.2f}GB")
 
             # Save current progress as video
-            output_filename = os.path.join(
-                generation_folder, 
-                f'{job_id}_{total_generated_latent_frames}.mp4'
-            )
+            # Name output differently for one frame mode (keeping it as mp4 for compatibility)
+            if one_frame_inference:
+                output_filename = os.path.join(
+                    generation_folder, 
+                    f'{job_id}_oneframe.mp4'
+                )
+                print("One Frame Inference: Saving as single frame video")
+            else:
+                output_filename = os.path.join(
+                    generation_folder, 
+                    f'{job_id}_{total_generated_latent_frames}.mp4'
+                )
 
             # Track video saving time
             performance_tracker.start_timer("video_save")

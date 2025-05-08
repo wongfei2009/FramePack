@@ -872,6 +872,29 @@ def create_ui(models, stream):
                             info="Half resolution provides much faster generation for previews."
                         )
                         
+                        # Add one frame inference checkbox
+                        one_frame_inference = gr.Checkbox(
+                            label="One Frame Inference",
+                            value=False,
+                            info="Generate only a single frame (for debugging and testing)"
+                        )
+                        
+                        # Disable/enable controls based on one frame inference selection
+                        def toggle_one_frame_mode(enabled):
+                            # Disable section controls and settings that don't apply in one frame mode
+                            return [
+                                gr.update(interactive=not enabled),  # total_latent_sections
+                                gr.update(interactive=not enabled),  # enable_section_controls
+                                gr.update(visible=not enabled)       # section_controls_group
+                            ]
+                            
+                        # Connect the one frame inference checkbox to UI updates
+                        one_frame_inference.change(
+                            fn=toggle_one_frame_mode,
+                            inputs=[one_frame_inference],
+                            outputs=[total_latent_sections, enable_section_controls, section_controls_group]
+                        )
+                        
                         # TeaCache removed from here and moved to Parameters tab
                     
                     # Right column for output
@@ -1093,7 +1116,7 @@ def create_ui(models, stream):
         def process(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                     steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
                     keep_section_videos, end_frame_strength, movement_scale, enable_section_controls, fp8_optimization, lora_path, 
-                    lora_multiplier, section_settings=None):
+                    lora_multiplier, section_settings=None, one_frame_inference=False):
             """
             Process the video generation request.
             
@@ -1137,7 +1160,7 @@ def create_ui(models, stream):
                 input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
                 keep_section_videos, end_frame_strength, movement_scale, processed_section_settings,
-                lora_path, lora_multiplier, fp8_optimization,
+                lora_path, lora_multiplier, fp8_optimization, one_frame_inference,
                 models, stream
             )
 
@@ -1268,7 +1291,7 @@ Video generation process has finished successfully."""
                 input_image, end_frame, prompt, n_prompt, seed, total_latent_sections, latent_window_size, 
                 steps, cfg, gs, rs, gpu_memory_preservation, use_teacache, teacache_thresh, resolution_scale, mp4_crf,
                 keep_section_videos, end_frame_strength, movement_scale, enable_section_controls, fp8_optimization, lora_path_state, 
-                lora_multiplier, section_settings
+                lora_multiplier, section_settings, one_frame_inference
             ],
             outputs=[result_video, preview_image, progress_desc, progress_bar, start_button, end_button]
         )
