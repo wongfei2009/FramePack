@@ -14,26 +14,18 @@ This guide provides instructions for deploying FramePack to RunPod with a focus 
   runpodctl config --apiKey YOUR_API_KEY
   ```
 
-- **Create a Network Volume** in RunPod UI (Secure Cloud > Volumes):
-  - Note down the **Volume ID** and **Data Center ID**
-
 ## 2. Deploy the Pod (Secure Method)
 
 To deploy without exposing the endpoint publicly (recommended):
 
 ```bash
 runpodctl create pod \
-    --name "framepack-app" \
-    --imageName "yourdockerhubusername/framepack-app" \
+    --name "framepack" \
+    --communityCloud \
     --startSSH \
-    --ports '22/tcp' \
     --gpuType "NVIDIA GeForce RTX 3090" \
     --gpuCount 1 \
-    --dataCenterId "YOUR_DATACENTER_ID" \
-    --networkVolumeId "vol-xxxxxxxxxxxxxxxxx" \
-    --volumePath "/app" \
-    --containerDiskSize 20
-    # Note: We intentionally omit the --ports flag for security
+    --templateId "sh69ed8ft7"
 ```
 
 ## 3. SSH Port Forwarding Access
@@ -54,29 +46,12 @@ POD_ID=$(runpodctl get pod | grep -v '^ID' | cut -f1)
 Run this command on your local machine to create the tunnel:
 
 ```bash
-eval $(runpodctl ssh connect $POD_ID) -L 7860:localhost:8080
+eval $(runpodctl ssh connect $POD_ID) -L 7860:localhost:7860
 ```
 
-Where:
-- `8080` is your desired local port
-- `7860` is FramePack's internal port
-
-Access the application at `http://localhost:8080` while keeping the terminal window open.
+Access the application at `http://localhost:7860` while keeping the terminal window open.
 
 ## 4. Troubleshooting
 
 - **Connection Refused**: Verify pod is running and SSH port is correct
 - **Cannot Access Application**: Check if the app is running on port 7860 in the pod
-- **Permission Denied**: Verify username, password, or SSH key
-
-## 5. Security Tips
-
-- Use SSH key authentication (optional):
-  ```bash
-  # Generate key if needed
-  ssh-keygen -t ed25519
-  
-  # Add to RunPod
-  runpodctl ssh add-key --publicKey "$(cat ~/.ssh/id_ed25519.pub)"
-  ```
-- Keep the SSH tunnel running only when needed
