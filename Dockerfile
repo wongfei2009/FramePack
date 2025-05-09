@@ -12,9 +12,12 @@ ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 ENV GRADIO_SERVER_NAME="0.0.0.0"
 ENV GRADIO_SERVER_PORT="7860"
-ENV HF_HOME="/app/huggingface_cache/huggingface"
-ENV TRANSFORMERS_CACHE="/app/huggingface_cache/transformers"
-ENV DIFFUSERS_CACHE="/app/huggingface_cache/diffusers"
+# Update all directories to use a single organized directory on the network drive
+ENV HF_HOME="/workspace/framepack/huggingface_cache/huggingface"
+ENV TRANSFORMERS_CACHE="/workspace/framepack/huggingface_cache/transformers"
+ENV DIFFUSERS_CACHE="/workspace/framepack/huggingface_cache/diffusers"
+ENV LOCAL_MODELS_DIR="/workspace/framepack/local_models"
+ENV OUTPUTS_DIR="/workspace/framepack/outputs"
 ENV PYTHONPATH="${PYTHONPATH}:/app"
 
 # 3. System Dependencies
@@ -44,16 +47,12 @@ RUN echo "Attempting to install SageAttention via pip (binary wheel only)..." &&
 # 6. Copy Application Code
 COPY . .
 
-# 7. Create directories for models and outputs
-RUN mkdir -p /app/local_models && \
-    mkdir -p /app/outputs && \
-    mkdir -p /app/huggingface_cache/huggingface && \
-    mkdir -p /app/huggingface_cache/transformers && \
-    mkdir -p /app/huggingface_cache/diffusers && \
-    chown -R 1000:1000 /app
+# 7. Create a separate setup script file
+COPY setup_workspace.sh /app/setup_workspace.sh
+RUN chmod +x /app/setup_workspace.sh
 
 # 8. Expose Port
 EXPOSE 7860
 
 # 9. Entrypoint/Command
-CMD ["python3", "app.py", "--server", "0.0.0.0", "--port", "7860"]
+CMD ["/app/setup_workspace.sh"]

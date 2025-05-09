@@ -48,13 +48,20 @@ def main():
     # Create UI with config
     block = create_ui(models, stream)
     
+    # Get outputs directory from environment or default
+    import os
+    outputs_dir = os.environ.get('OUTPUTS_DIR', '/workspace/framepack/outputs')
+    
     # Launch the application
     block.launch(
         server_name=args.server,
         server_port=args.port,
         share=args.share,
-        max_threads=20    # Increase number of worker threads for handling requests
+        max_threads=20,    # Increase number of worker threads for handling requests
+        allowed_paths=[outputs_dir]  # Allow Gradio to serve files from this path
     )
+    
+    print(f"Allowed paths for Gradio: {outputs_dir}")
 
 if __name__ == "__main__":
     main()

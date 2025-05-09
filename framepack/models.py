@@ -62,13 +62,27 @@ def load_model_locally_or_download(model_cls, model_id, subfolder=None, **kwargs
 
 def get_local_models_dir():
     """
-    Get the local models directory, creating it if it doesn't exist.
+    Get the local models directory from environment variable or default path,
+    creating it if it doesn't exist.
     
     Returns:
         Path to local models directory
     """
-    local_models_dir = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), '..', 'local_models')))
+    # Check if the environment variable is set
+    env_models_dir = os.environ.get('LOCAL_MODELS_DIR')
+    
+    if env_models_dir:
+        local_models_dir = os.path.abspath(os.path.realpath(env_models_dir))
+    else:
+        # Use default path if environment variable is not set
+        local_models_dir = os.path.abspath(os.path.realpath(
+            os.path.join(os.path.dirname(__file__), '..', 'local_models')
+        ))
+    
+    # Ensure the directory exists
     os.makedirs(local_models_dir, exist_ok=True)
+    print(f"Using local models directory: {local_models_dir}")
+    
     return local_models_dir
 
 # Function removed - Sage Attention is now handled directly in the attention computation function
