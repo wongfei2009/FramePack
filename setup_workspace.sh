@@ -41,4 +41,6 @@ echo "============================"
 
 # Start the application with more memory for CUDA
 echo "Starting FramePack application..."
-exec python3 app.py --server 0.0.0.0 --port 7860
+# Change to the app directory first to ensure we're in the right place
+cd /app
+exec python3 /app/app.py --server 0.0.0.0 --port 7860

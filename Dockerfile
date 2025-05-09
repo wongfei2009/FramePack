@@ -12,6 +12,7 @@ ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 ENV GRADIO_SERVER_NAME="0.0.0.0"
 ENV GRADIO_SERVER_PORT="7860"
+ENV RUNPOD=1
 # Update all directories to use a single organized directory on the network drive
 ENV HF_HOME="/workspace/framepack/huggingface_cache/huggingface"
 ENV TRANSFORMERS_CACHE="/workspace/framepack/huggingface_cache/transformers"

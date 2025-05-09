@@ -3,10 +3,17 @@ Main application entry point for FramePack.
 """
 
 import argparse
+import os
 from custom_asyncio_policy import apply_asyncio_fixes
 
 # Apply custom asyncio fixes before any other imports that might use asyncio
 apply_asyncio_fixes()
+
+# Apply RunPod-specific fixes if running in RunPod environment
+if os.environ.get('RUNPOD_POD_ID') or os.environ.get('RUNPOD') or 'runpod' in os.environ.get('HOME', '').lower():
+    print("RunPod environment detected, applying Gradio compatibility fixes...")
+    from runpod_gradio_fix import apply_fixes
+    apply_fixes()
 
 # Import from diffusers_helper
 from diffusers_helper.thread_utils import AsyncStream
@@ -58,7 +65,9 @@ def main():
         server_port=args.port,
         share=args.share,
         max_threads=20,    # Increase number of worker threads for handling requests
-        allowed_paths=[outputs_dir]  # Allow Gradio to serve files from this path
+        allowed_paths=[outputs_dir],  # Allow Gradio to serve files from this path
+        root_path="",      # Empty root_path to handle proxy correctly
+        ssl_verify=False   # Disable SSL verification for proxy environments
     )
     
     print(f"Allowed paths for Gradio: {outputs_dir}")
