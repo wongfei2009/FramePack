@@ -36,15 +36,6 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-RUN pip3 install --no-cache-dir triton
-
-# Attempt to install SageAttention via pip, ONLY if a pre-built binary wheel is available.
-RUN echo "Attempting to install SageAttention via pip (binary wheel only)..." && \
-    pip3 install --no-cache-dir --only-binary=:all: sageattention && \
-    echo "pip install sageattention --only-binary=:all: command finished successfully." && \
-    echo "Installed sageattention version details:" && \
-    pip3 show sageattention || echo "SageAttention not found or pip show failed."
-
 # 6. Copy Application Code
 COPY . .
 
