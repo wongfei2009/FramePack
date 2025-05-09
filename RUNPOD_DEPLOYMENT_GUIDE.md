@@ -25,9 +25,10 @@ To deploy without exposing the endpoint publicly (recommended):
 runpodctl create pod \
     --name "framepack-app" \
     --imageName "yourdockerhubusername/framepack-app" \
+    --startSSH \
+    --ports '22/tcp' \
     --gpuType "NVIDIA GeForce RTX 3090" \
     --gpuCount 1 \
-    --secureCloud \
     --dataCenterId "YOUR_DATACENTER_ID" \
     --networkVolumeId "vol-xxxxxxxxxxxxxxxxx" \
     --volumePath "/app" \
@@ -45,9 +46,7 @@ From the RunPod web interface:
 
 Or using runpodctl:
 ```bash
-runpodctl get pod
-runpodctl get pod YOUR_POD_ID
-# Look for SSH connection details
+POD_ID=$(runpodctl get pod | grep -v '^ID' | cut -f1)
 ```
 
 ### 3.2 Create SSH Tunnel
@@ -55,32 +54,14 @@ runpodctl get pod YOUR_POD_ID
 Run this command on your local machine to create the tunnel:
 
 ```bash
-ssh -L 8080:localhost:7860 root@POD_IP -p SSH_PORT
+eval $(runpodctl ssh connect $POD_ID) -L 7860:localhost:8080
 ```
 
 Where:
 - `8080` is your desired local port
 - `7860` is FramePack's internal port
-- `POD_IP` and `SSH_PORT` are from the SSH connection details
 
 Access the application at `http://localhost:8080` while keeping the terminal window open.
-
-### 3.3 Optional: Create an SSH Config Entry
-
-For convenience, add to your `~/.ssh/config`:
-
-```
-Host framepack
-  HostName POD_IP
-  User root
-  Port SSH_PORT
-  LocalForward 8080 localhost:7860
-```
-
-Then simply connect with:
-```bash
-ssh framepack
-```
 
 ## 4. Troubleshooting
 
