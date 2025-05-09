@@ -83,7 +83,7 @@ The software now prioritizes SageAttention when available, falling back to PyTor
 
 **Linux**:
 
-We recommend having an independent Python 3.10.
+We recommend having an independent Python 3.11.
 
     pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
     pip install -r requirements.txt
