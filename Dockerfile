@@ -21,30 +21,37 @@ ENV LOCAL_MODELS_DIR="/workspace/framepack/local_models"
 ENV OUTPUTS_DIR="/workspace/framepack/outputs"
 ENV PYTHONPATH="${PYTHONPATH}:/app"
 
-# 3. System Dependencies
+# 3. System Dependencies - Added openssh-server
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
     ffmpeg \
-    git && \
+    git \
+    openssh-server && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 4. Set up Working Directory
+# 4. SSH Configuration
+# Create SSH directory and set permissions
+RUN mkdir -p /root/.ssh && \
+    chmod 700 /root/.ssh
+
+# 5. Set up Working Directory
 WORKDIR /app
 
-# 5. Install Python Dependencies from requirements.txt and Triton
+# 6. Install Python Dependencies from requirements.txt and Triton
 COPY requirements.txt ./
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-# 6. Copy Application Code
+# 7. Copy Application Code
 COPY . .
 
-# 7. Create a separate setup script file
-COPY setup_workspace.sh /app/setup_workspace.sh
-RUN chmod +x /app/setup_workspace.sh
+# 8. Make scripts executable
+RUN chmod +x /app/setup_workspace.sh && \
+    chmod +x /app/setup_ssh.sh && \
+    chmod +x /app/startup.sh
 
-# 8. Expose Port
-EXPOSE 7860
+# 9. Expose Ports - added SSH port 22
+EXPOSE 7860 22
 
-# 9. Entrypoint/Command
-CMD ["/app/setup_workspace.sh"]
+# 10. Entrypoint/Command - Use the combined startup script
+CMD ["/app/startup.sh"]
