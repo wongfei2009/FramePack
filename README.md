@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="https://github.com/user-attachments/assets/2cc030b4-87e1-40a0-b5bf-1b7d6b62820b" width="300">
+    <img src="./assets/framepack-logo.svg" width="300">
 </p>
 
 # FramePack

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
+  <defs>
+    <!-- Background -->
+    <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8f9fa" />
+      <stop offset="100%" stop-color="#f8f9fa" />
+    </linearGradient>
+    
+    <!-- Shadow filter -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="2" dy="2" stdDeviation="2" flood-opacity="0.2" />
+    </filter>
+  </defs>
+  
+  <!-- Main background -->
+  <rect width="300" height="300" rx="20" fill="url(#bg-gradient)" />
+  
+  <!-- Logo group -->
+  <g transform="translate(0, 10)">
+    <!-- Largest frame - rightmost -->
+    <rect x="200" y="80" width="80" height="140" rx="15" fill="#7c6ef5" filter="url(#shadow)" />
+    
+    <!-- Medium-large frame -->
+    <rect x="120" y="95" width="70" height="110" rx="15" fill="#9281f7" filter="url(#shadow)" />
+    
+    <!-- Medium-small frame -->
+    <rect x="55" y="110" width="55" height="80" rx="15" fill="#b6a8f8" filter="url(#shadow)" />
+    
+    <!-- Smallest frame - leftmost -->
+    <rect x="15" y="125" width="30" height="50" rx="10" fill="#d7d0fb" filter="url(#shadow)" />
+    
+    <!-- Horizontal dotted line with arrow -->
+    <path d="M 15 150 L 280 150" stroke="#9669f8" stroke-width="3" stroke-dasharray="5,5" />
+    <polygon points="280,150 272,146 272,154" fill="#9669f8" />
+    
+    <!-- History buffer -->
+    <rect x="15" y="225" width="265" height="50" rx="15" fill="#c4b8fa" stroke="#9669f8" stroke-width="2" filter="url(#shadow)" />
+    
+    <!-- Connecting lines -->
+    <path d="M 30 175 L 30 225" stroke="#9669f8" stroke-width="3" stroke-dasharray="5,5" />
+    <path d="M 83 190 L 83 225" stroke="#9669f8" stroke-width="3" stroke-dasharray="5,5" />
+    <path d="M 155 205 L 155 225" stroke="#9669f8" stroke-width="3" stroke-dasharray="5,5" />
+  </g>
+</svg>
