@@ -52,19 +52,14 @@ runpodctl create pod \
 
 From the RunPod web interface:
 - Go to your pod details > "Connect" dropdown > "Connect via SSH"
-- Copy the SSH command (e.g., `ssh root@123.45.67.89 -p 12345`)
-
-Or using runpodctl:
-```bash
-POD_ID=$(runpodctl get pod | grep -v '^ID' | cut -f1)
-```
+- Copy the SSH command (e.g., `ssh dodslhekkbub56-6441193d@ssh.runpod.io -i ~/.ssh/id_ed25519`)
 
 #### 3.2 Create SSH Tunnel
 
 Run this command on your local machine to create the tunnel:
 
 ```bash
-eval $(runpodctl ssh connect $POD_ID) -L 7860:localhost:7860
+ssh dodslhekkbub56-6441193d@ssh.runpod.io -i ~/.ssh/id_ed25519 -L 7860:localhost:7860
 ```
 
 #### 3.3 Access FramePack
