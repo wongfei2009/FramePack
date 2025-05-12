@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" width="900" height="520">
+  <style>
+    .heading { font-family: Arial, sans-serif; font-size: 24px; font-weight: bold; text-anchor: middle; }
+    .subheading { font-family: Arial, sans-serif; font-size: 18px; font-weight: bold; text-anchor: middle; }
+    .section-title { font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; text-anchor: middle; }
+    .reg-text { font-family: Arial, sans-serif; font-size: 14px; text-anchor: middle; dominant-baseline: middle; }
+    .small-text { font-family: Arial, sans-serif; font-size: 12px; text-anchor: middle; }
+    .left-text { font-family: Arial, sans-serif; font-size: 14px; text-anchor: start; }
+    .prompt-text { font-family: monospace; font-size: 12px; text-anchor: start; }
+    .box-text { font-family: Arial, sans-serif; font-size: 14px; text-anchor: middle; dominant-baseline: middle; }
+    .timeline { stroke: #4B5563; stroke-width: 2; }
+    .bg-panel { fill: #F9FAFB; stroke: #E5E7EB; stroke-width: 2; rx: 8; ry: 8; }
+    .section-box { fill: #E0F2FE; stroke: #0EA5E9; stroke-width: 2; rx: 8; ry: 8; }
+    .purple-box { fill: #F3E8FF; stroke: #9061F9; stroke-width: 2; }
+    .green-box { fill: #DCFCE7; stroke: #22C55E; stroke-width: 2; }
+    .yellow-box { fill: #FEF9C3; stroke: #FACC15; stroke-width: 2; }
+    .img-box { fill: #EFF6FF; stroke: #3B82F6; stroke-width: 1; }
+    .prompt-box { fill: #F0F9FF; stroke: #0EA5E9; stroke-width: 1; }
+    .dashed-box { fill: none; stroke: #9CA3AF; stroke-width: 1; stroke-dasharray: 4,4; rx: 3; ry: 3; }
+    .arrow { stroke: #4B5563; stroke-width: 2; marker-end: url(#arrowhead); }
+    .section-highlight { fill: none; stroke: #2563EB; stroke-width: 2; rx: 10; ry: 10; stroke-dasharray: 6,3; }
+    .line-divider { stroke: #9CA3AF; stroke-width: 1; stroke-dasharray: 3,3; }
+    .timeline-marker { stroke: #4B5563; stroke-width: 2; }
+    .tip-box { fill: #FFFBEB; stroke: #F59E0B; stroke-width: 1; rx: 6; ry: 6; }
+  </style>
+  
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#4B5563" />
+    </marker>
+  </defs>
+  
+  <!-- Title -->
+  <text x="450" y="30" class="heading">FramePack Section Controls</text>
+  
+  <!-- Timeline Visualization -->
+  <rect x="50" y="60" width="800" height="440" class="bg-panel" />
+  
+  <!-- Main Timeline -->
+  <line x1="100" y1="200" x2="800" y2="200" class="timeline" />
+  <polygon points="800,200 790,195 790,205" fill="#4B5563" />
+  
+  <!-- Section Boxes -->
+  <!-- Section 0 (Start) -->
+  <rect x="100" y="90" width="200" height="200" class="section-box" opacity="0.8" />
+  <text x="200" y="110" class="section-title">SECTION 0 (START)</text>
+  
+  <!-- Section 1 (Middle) -->
+  <rect x="350" y="90" width="200" height="200" class="section-box" opacity="0.8" />
+  <text x="450" y="110" class="section-title">SECTION 1 (MIDDLE)</text>
+  
+  <!-- Section 2 (End) -->
+  <rect x="600" y="90" width="200" height="200" class="section-box" opacity="0.8" />
+  <text x="700" y="110" class="section-title">SECTION 2 (END)</text>
+  
+  <!-- Section 0 Content -->
+  <rect x="120" y="130" width="60" height="60" class="img-box" />
+  <text x="150" y="160" class="small-text">Image 0</text>
+  <rect x="120" y="200" width="160" height="40" class="prompt-box" />
+  <text x="130" y="220" class="prompt-text">"Character walking"</text>
+  
+  <!-- Section 1 Content -->
+  <rect x="370" y="130" width="60" height="60" class="img-box" />
+  <text x="400" y="160" class="small-text">Image 1</text>
+  <rect x="370" y="200" width="160" height="40" class="prompt-box" />
+  <text x="380" y="220" class="prompt-text">"Character dancing"</text>
+
+  <!-- Section 2 Content -->
+  <rect x="620" y="130" width="60" height="60" class="img-box" />
+  <text x="650" y="160" class="small-text">Image 2</text>
+  <rect x="620" y="200" width="160" height="40" class="prompt-box" />
+  <text x="630" y="220" class="prompt-text">"Character waving"</text>
+  
+  <!-- Video Preview Frames -->
+  <rect x="130" y="320" width="40" height="30" class="dashed-box" />
+  <rect x="180" y="320" width="40" height="30" class="dashed-box" />
+  <rect x="230" y="320" width="40" height="30" class="dashed-box" />
+  
+  <rect x="380" y="320" width="40" height="30" class="dashed-box" />
+  <rect x="430" y="320" width="40" height="30" class="dashed-box" />
+  <rect x="480" y="320" width="40" height="30" class="dashed-box" />
+  
+  <rect x="630" y="320" width="40" height="30" class="dashed-box" />
+  <rect x="680" y="320" width="40" height="30" class="dashed-box" />
+  <rect x="730" y="320" width="40" height="30" class="dashed-box" />
+  
+  <!-- Time Markers -->
+  <line x1="100" y1="200" x2="100" y2="210" class="timeline-marker" />
+  <text x="100" y="225" class="small-text">0:00</text>
+  
+  <line x1="300" y1="200" x2="300" y2="210" class="timeline-marker" />
+  <text x="300" y="225" class="small-text">0:20</text>
+  
+  <line x1="550" y1="200" x2="550" y2="210" class="timeline-marker" />
+  <text x="550" y="225" class="small-text">0:40</text>
+  
+  <line x1="800" y1="200" x2="800" y2="210" class="timeline-marker" />
+  <text x="800" y="225" class="small-text">1:00</text>
+  
+  <!-- Video Preview Label -->
+  <text x="200" y="300" class="section-title">VIDEO FRAMES</text>
+  <text x="450" y="300" class="section-title">VIDEO FRAMES</text>
+  <text x="700" y="300" class="section-title">VIDEO FRAMES</text>
+  
+  <!-- Generation Direction Indicators -->
+  <text x="450" y="260" class="subheading">Video Timeline</text>
+  
+  <!-- Generation Order -->
+  <text x="200" y="360" class="reg-text">Generated Last</text>
+  <text x="450" y="360" class="reg-text">Generated Second</text>
+  <text x="700" y="360" class="reg-text">Generated First</text>
+  
+  <!-- Timeline Annotations -->
+  <line x1="100" y1="380" x2="800" y2="380" class="timeline" />
+  <polygon points="100,380 110,375 110,385" fill="#4B5563" />
+  <text x="450" y="400" class="reg-text">Generation Direction (End → Start)</text>
+  
+  <!-- Key Features Box -->
+  <rect x="100" y="420" width="700" height="70" class="tip-box" />
+  <text x="130" y="440" class="left-text">• Each section can have its own reference image and/or prompt</text>
+  <text x="130" y="460" class="left-text">• Sections without settings inherit from the previous section (sparse control)</text>
+  <text x="130" y="480" class="left-text">• Remember: Section 0 is the START but is generated LAST in the process</text>
+</svg>
