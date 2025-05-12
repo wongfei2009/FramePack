@@ -38,7 +38,6 @@ Deploy FramePack without exposing the endpoint publicly (recommended):
 runpodctl create pod \
     --name "framepack" \
     --communityCloud \
-    --startSSH \
     --gpuType "NVIDIA GeForce RTX 5090" \
     --gpuCount 1 \
     --templateId "sh69ed8ft7"
