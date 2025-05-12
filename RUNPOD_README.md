@@ -38,6 +38,7 @@ Deploy FramePack without exposing the endpoint publicly (recommended):
 runpodctl create pod \
     --name "framepack-video-generator" \
     --communityCloud \
+    --startSSH \
     --gpuType "NVIDIA GeForce RTX 5090" \
     --gpuCount 1 \
     --imageName "wongfei2009/framepack:latest" \
@@ -51,15 +52,15 @@ runpodctl create pod \
 #### 3.1 Get SSH Connection Details
 
 From the RunPod web interface:
-- Go to your pod details > "Connect" dropdown > "Connect via SSH"
-- Copy the SSH command (e.g., `ssh dodslhekkbub56-6441193d@ssh.runpod.io -i ~/.ssh/id_ed25519`)
+- Go to your pod details > "Connect" dropdown > "SSH over exposed TCP"
+- Copy the SSH command (e.g., `ssh root@80.15.7.37 -p 48896 -i ~/.ssh/id_ed25519`)
 
 #### 3.2 Create SSH Tunnel
 
 Run this command on your local machine to create the tunnel:
 
 ```bash
-ssh dodslhekkbub56-6441193d@ssh.runpod.io -i ~/.ssh/id_ed25519 -L 7860:localhost:7860
+ssh root@80.15.7.37 -p 48896 -i ~/.ssh/id_ed25519 -L 7860:localhost:7860
 ```
 
 #### 3.3 Access FramePack
