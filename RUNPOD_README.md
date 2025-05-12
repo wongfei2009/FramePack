@@ -37,8 +37,7 @@ Deploy FramePack without exposing the endpoint publicly (recommended):
 ```bash
 runpodctl create pod \
     --name "framepack-video-generator" \
-    --communityCloud \
-    --startSSH \
+    --secureCloud \
     --gpuType "NVIDIA GeForce RTX 5090" \
     --gpuCount 1 \
     --imageName "wongfei2009/framepack:latest" \
