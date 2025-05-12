@@ -36,11 +36,14 @@ Deploy FramePack without exposing the endpoint publicly (recommended):
 
 ```bash
 runpodctl create pod \
-    --name "framepack" \
+    --name "framepack-video-generator" \
     --communityCloud \
     --gpuType "NVIDIA GeForce RTX 5090" \
     --gpuCount 1 \
-    --templateId "sh69ed8ft7"
+    --imageName "wongfei2009/framepack:latest" \
+    --containerDiskSize 5 \
+    --volumeSize 55 \
+    --volumePath "/workspace"
 ```
 
 ### 3. SSH Port Forwarding Access
