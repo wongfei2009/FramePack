@@ -351,13 +351,16 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
 
         # Generate video in progressive sections
         # Define helper function for getting section-specific prompts
-        def get_section_prompt(i_section, section_map, default_llama_vec, default_clip_pooler, default_mask):
+        def get_section_prompt(i_section, section_map, default_llama_vec, default_clip_pooler, default_mask, total_sections):
             """Get section-specific prompt encoding if available"""
             if not section_map:
                 return default_llama_vec, default_clip_pooler, default_mask
+            
+            # Calculate the reversed index to match the section latent function
+            reversed_index = total_sections - i_section - 1
                 
             # Find the section <= current section. First, get all valid section numbers
-            valid_keys = [k for k in section_map.keys() if k <= i_section]
+            valid_keys = [k for k in section_map.keys() if k <= reversed_index]
             if not valid_keys:
                 return default_llama_vec, default_clip_pooler, default_mask
                 
@@ -370,7 +373,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
                 return default_llama_vec, default_clip_pooler, default_mask
                 
             # Encode section-specific prompt
-            print(f"Using prompt from section {use_key} for section {i_section}")
+            print(f"Using prompt from UI section {use_key} for processing section {i_section} (reversed index: {reversed_index})")
             print(f"Section prompt: {section_prompt_text[:50]}...")
             
             if not models.high_vram:
@@ -413,7 +416,7 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
                 
                 if valid_keys:
                     use_key = max(valid_keys)  # Get the closest previous section
-                    print(f"Using image from section {use_key} for section {i_section} (reversed index: {reversed_index})")
+                    print(f"Using image from UI section {use_key} for processing section {i_section} (reversed index: {reversed_index})")
                     section_latent = section_latents[use_key]
                     print(f"Section latent shape: {section_latent.shape}, min: {section_latent.min().item():.4f}, max: {section_latent.max().item():.4f}")
                     return section_latent
@@ -489,10 +492,12 @@ def worker(input_image, end_frame, prompt, n_prompt, seed, total_latent_sections
             print(f"  - Using latent for section {i_section}: shape {current_latent.shape}")
             
             # Get section-specific prompt if available
+            total_sections = len(latent_paddings)
+            reversed_index = total_sections - i_section - 1
             current_llama_vec, current_clip_pooler, current_mask = get_section_prompt(
-                i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask
+                i_section, section_map, llama_vec, clip_l_pooler, llama_attention_mask, total_sections
             )
-            print(f"  - Using prompt for section {i_section}: shape {current_llama_vec.shape}")
+            print(f"  - Using prompt for section {i_section} (UI section {reversed_index}): shape {current_llama_vec.shape}")
             
             # Prepare clean latents using the current latent (which might be section-specific)
             clean_latents_pre = current_latent.to(history_latents)
