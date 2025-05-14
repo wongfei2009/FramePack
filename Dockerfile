@@ -38,9 +38,10 @@ RUN mkdir -p /root/.ssh && \
 # 5. Set up Working Directory
 WORKDIR /app
 
-# 6. Install Python Dependencies from requirements.txt and Triton
+# 6. Install Python Dependencies from requirements.txt and sageattention
 COPY requirements.txt ./
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt && \
+    pip3 install sageattention==1.0.6
 
 # 7. Copy Application Code
 COPY . .
