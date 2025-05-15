@@ -1,0 +1,32 @@
+# Use RunPod PyTorch image as base
+FROM runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+    git \
+    build-essential \
+    ninja-build \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set up working directory
+WORKDIR /build
+
+# Install Python build dependencies
+RUN pip3 install --no-cache-dir \
+    wheel \
+    setuptools \
+    build \
+    ninja \
+    huggingface_hub
+
+# Clone the SageAttention repository
+RUN git clone https://github.com/thu-ml/SageAttention.git
+
+# Set the entrypoint to bash to keep container running
+ENTRYPOINT ["/bin/bash"]

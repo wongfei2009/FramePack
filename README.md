@@ -161,3 +161,43 @@ The section controls feature allows for precise control over different segments 
 ## Examples
 
 Many more examples are in [**Project Page**](https://lllyasviel.github.io/frame_pack_gitpage/).
+
+## Docker Deployment
+
+### Building the Docker Image
+
+To build the Docker image locally:
+
+```bash
+docker build -t wongfei2009/framepack:latest -f Dockerfile .
+```
+
+### Pushing to Docker Hub
+
+After building, you can push the image to Docker Hub:
+
+```bash
+docker push wongfei2009/framepack:latest
+```
+
+### Running the Container
+
+To run the FramePack container:
+
+```bash
+docker run -d --name framepack \
+  --gpus all \
+  -p 7860:7860 \
+  -v /path/to/your/models:/workspace/framepack/local_models \
+  -v /path/to/your/outputs:/workspace/framepack/outputs \
+  -v /path/to/your/cache:/workspace/framepack/huggingface_cache \
+  wongfei2009/framepack:latest
+```
+
+This will:
+- Use all available GPUs
+- Expose the Gradio interface on port 7860
+- Mount three volumes for models, outputs, and cache
+- Run the container in detached mode
+
+You can then access the web interface at `http://localhost:7860`
