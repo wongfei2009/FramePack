@@ -39,9 +39,20 @@ WORKDIR /build
 RUN git clone https://github.com/thu-ml/SageAttention.git
 WORKDIR /build/SageAttention
 
-# Add patched setup.py file to add RTX 5090 support to SageAttention
+# Add patched setup.py and core.py files to add RTX 5090 support to SageAttention
 COPY patch_setup.py /build/patch_setup.py
+COPY patch_core.py /build/patch_core.py
+
+# Apply patches one at a time to better handle errors
 RUN python3 /build/patch_setup.py
+RUN echo "Patched setup.py successfully"
+
+# Check if the SageAttention source directory has core.py
+RUN ls -la /build/SageAttention/sageattention/ || echo "Directory not found!"
+
+# Apply the core.py patch
+RUN python3 /build/patch_core.py
+RUN echo "Patched core.py successfully"
 
 # Copy build script
 COPY build_wheel.sh /build/build_wheel.sh
