@@ -25,7 +25,7 @@ This guide provides instructions for building [SageAttention](https://github.com
 Build the Docker image with RTX 5090 support:
 
 ```bash
-docker build -t sageattention-rtx5090-builder -f Dockerfile.build .
+docker build -t sageattention-builder -f Dockerfile.build .
 ```
 
 This will create a Docker image that is preconfigured to build SageAttention with RTX 5090 (sm_120) support.
@@ -37,7 +37,7 @@ This will create a Docker image that is preconfigured to build SageAttention wit
 mkdir -p sage-wheels
 
 # Run the container with GPU access and mount the directory
-docker run --gpus all -v $(pwd)/sage-wheels:/out sageattention-rtx5090-builder
+docker run --gpus all -v $(pwd)/sage-wheels:/out sageattention-builder
 ```
 
 The container will automatically:
@@ -53,7 +53,7 @@ To customize the CUDA architecture targets, you can specify different architectu
 ```bash
 docker run --gpus all -v $(pwd)/sage-wheels:/out \
   -e TORCH_CUDA_ARCH_LIST="8.6 9.0 12.0+PTX" \
-  sageattention-rtx5090-builder
+  sageattention-builder
 ```
 
 ## Upload to Hugging Face (Optional)
