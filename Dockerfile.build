@@ -13,7 +13,7 @@ ENV TORCH_NVCC_FLAGS="-Xfatbin -compress-all --threads=${NVCC_THREADS}"
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
-# Install dependencies
+# Install dependencies with openssh-server
 RUN apt-get update && apt-get install -y \
     python3-dev \
     python3-pip \
@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y \
     cmake \
     build-essential \
     ninja-build \
+    openssh-server \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
@@ -31,6 +32,11 @@ RUN pip3 install --no-cache-dir \
     build \
     ninja \
     huggingface_hub
+
+# Set up SSH server
+RUN mkdir -p /root/.ssh && \
+    chmod 700 /root/.ssh && \
+    mkdir -p /run/sshd
 
 # Set up working directory
 WORKDIR /build
@@ -46,5 +52,39 @@ RUN ls -la /build/SageAttention/sageattention/ || echo "Directory not found!"
 COPY build_wheel.sh /build/build_wheel.sh
 RUN chmod +x /build/build_wheel.sh
 
-# Set the entrypoint to our build script
-ENTRYPOINT ["/build/build_wheel.sh"]
+# Create SSH setup script as a physical file
+WORKDIR /build
+RUN echo '#!/bin/bash' > /build/setup_ssh.sh && \
+    echo 'echo "======= SSH Setup ======="' >> /build/setup_ssh.sh && \
+    echo 'if [ -n "$PUBLIC_KEY" ]; then' >> /build/setup_ssh.sh && \
+    echo '  echo "$PUBLIC_KEY" > /root/.ssh/authorized_keys' >> /build/setup_ssh.sh && \
+    echo '  chmod 600 /root/.ssh/authorized_keys' >> /build/setup_ssh.sh && \
+    echo '  echo "Added provided public key to authorized_keys"' >> /build/setup_ssh.sh && \
+    echo 'else' >> /build/setup_ssh.sh && \
+    echo '  echo "No public key provided. SSH access will require a public key."' >> /build/setup_ssh.sh && \
+    echo 'fi' >> /build/setup_ssh.sh && \
+    echo '/usr/sbin/sshd -D &' >> /build/setup_ssh.sh && \
+    echo 'echo "SSH service started"' >> /build/setup_ssh.sh && \
+    echo 'echo "======================="' >> /build/setup_ssh.sh && \
+    chmod +x /build/setup_ssh.sh
+
+# Create startup script as a physical file
+RUN echo '#!/bin/bash' > /build/startup.sh && \
+    echo '# Run SSH setup first' >> /build/startup.sh && \
+    echo '/build/setup_ssh.sh' >> /build/startup.sh && \
+    echo '# Run the build script' >> /build/startup.sh && \
+    echo '/build/build_wheel.sh' >> /build/startup.sh && \
+    echo 'echo "Build completed. Container will remain running for SSH access."' >> /build/startup.sh && \
+    echo 'echo "Connect using: ssh root@<container-ip> with your SSH key"' >> /build/startup.sh && \
+    echo '# Keep the container running' >> /build/startup.sh && \
+    echo 'tail -f /dev/null' >> /build/startup.sh && \
+    chmod +x /build/startup.sh
+
+# Make sure the script is visible
+RUN ls -la /build/ && cat /build/startup.sh
+
+# Expose SSH port
+EXPOSE 22
+
+# Set the entrypoint to our startup script
+CMD ["/build/startup.sh"]
